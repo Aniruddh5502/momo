@@ -45,6 +45,17 @@ def build_system_prompt(state: Dict[str, Any]) -> str:
     except Exception as e:
         soul_content = "You are Momobot, a high-performance AI agent."
 
+    # get user info
+    user_file = root / "prompts" / "user.md"
+    user_content = ""
+    try:
+        with open(user_file, 'r',encoding='utf-8') as file:
+            user_content = file.read()
+    except:
+        user_content = ""
+
+    user_content_sys = f"\n\n# User Details and Memory\n{user_content}"
+
     # 2. Get System Info
     sys_info = get_system_info()
     sys_info_str = "\n\n# System Information:\n" + json.dumps(sys_info, indent=2)
@@ -57,13 +68,13 @@ def build_system_prompt(state: Dict[str, Any]) -> str:
     momo_file = WORKSPACE_DIR / "momo.md"
     try:
         with open(momo_file, 'r', encoding='utf-8') as file:
-            momo_ = momo_file.read_text()
+            momo_ = momo_file.read()
         momo_content = f"\n\n# Project Specific tools and files locations\n{momo_}"
     except:
         momo_content = ""
         
         
     # Combine all parts
-    full_prompt = f"{soul_content}{sys_info_str}{state_str}{momo_content}"
+    full_prompt = f"{soul_content} {user_content_sys} {sys_info_str}{state_str}{momo_content}"
     
     return full_prompt
