@@ -7,8 +7,8 @@ from typing import Dict, Any, List
 from rich.console import Console
 from rich.markdown import Markdown
 
-from cmd.registry import CommandRegistry, CommandResult
-from bootstrap import sessions_db
+from momobot.cmd.registry import CommandRegistry, CommandResult
+from momobot.bootstrap import sessions_db
 
 console = Console()
 
@@ -74,8 +74,6 @@ def register_session_name(thread_id: str, first_message: str) -> None:
     except Exception:
         return
 
-    # Only bother pruning when we actually added a session — no point doing
-    # the SELECT DISTINCT on every turn.
     if created:
         try:
             n = prune_sessions()
@@ -86,13 +84,6 @@ def register_session_name(thread_id: str, first_message: str) -> None:
 
 
 def _list_sessions() -> List[Dict[str, str]]:
-    """Returns saved sessions, newest first.
-
-    Thread IDs come from LangGraph's `checkpoints` table. Names come from
-    `session_meta`; anything without a row (sessions that were created
-    before naming was introduced, or that never got a user message) simply
-    has name=None and the caller decides how to display it.
-    """
     if not sessions_db.exists():
         return []
 
@@ -128,29 +119,18 @@ def _list_sessions() -> List[Dict[str, str]]:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Deletion & pruning
-# ---------------------------------------------------------------------------
 
-MAX_SESSIONS = 1000  # keep the newest N; prune the rest
-
+MAX_SESSIONS = 1000
 
 def _delete_session_data(thread_id: str) -> None:
-    """Remove every trace of a session: LangGraph checkpoints, pending writes,
-    and our own meta row. Safe to call on a thread that doesn't exist."""
     conn = _connect()
     try:
         cur = conn.cursor()
-
-        # LangGraph SqliteSaver stores checkpoints and pending writes in
-        # two separate tables, both keyed by thread_id. Older DB files may
-        # predate the `writes` table, so tolerate that.
         for table in ("checkpoints", "writes"):
             try:
                 cur.execute(f"DELETE FROM {table} WHERE thread_id=?", (thread_id,))
             except sqlite3.OperationalError:
                 pass
-
         cur.execute("DELETE FROM session_meta WHERE thread_id=?", (thread_id,))
         conn.commit()
     finally:
@@ -158,11 +138,6 @@ def _delete_session_data(thread_id: str) -> None:
 
 
 def prune_sessions(max_keep: int = MAX_SESSIONS) -> int:
-    """Delete oldest sessions beyond `max_keep`. Returns how many were removed.
-
-    Sessions are ordered by `updated_at` descending, so anything with an
-    empty timestamp (legacy rows) sorts to the bottom and gets pruned first.
-    """
     sessions = _list_sessions()
     if len(sessions) <= max_keep:
         return 0
@@ -211,7 +186,6 @@ def handle_sessions(args: str, state: Dict[str, Any], context: Dict[str, Any]) -
 
     args = args.strip()
 
-    # -- List mode --
     if not args:
         sessions = _list_sessions()
         if not sessions:
@@ -224,11 +198,7 @@ def handle_sessions(args: str, state: Dict[str, Any], context: Dict[str, Any]) -
         for i, s in enumerate(sessions, 1):
             current = s["thread_id"] == ui.current_thread_id
             marker = " [bold green]●[/bold green]" if current else ""
-
-            # Named sessions: show the friendly name. Unnamed (legacy) ones:
-            # just fall back to the thread_id so the row is still usable.
             label = s["name"] if s["name"] else s["thread_id"]
-
             console.print(
                 f" [{book_cloth}]{i:>4}[/{book_cloth}]  "
                 f"[{cloud_light}]{label}[/{cloud_light}]{marker}"
@@ -236,7 +206,6 @@ def handle_sessions(args: str, state: Dict[str, Any], context: Dict[str, Any]) -
         console.print("[dim]\nUse /session{i} to resume one of these.\n[/dim]")
         return CommandResult()
 
-    # -- Resume mode: /session{index} --
     match = re.match(r"(\d+)", args)
     if not match:
         console.print("[bold red]Usage: /session[index] or /session to list.[/bold red]")
@@ -265,7 +234,7 @@ def handle_sessions(args: str, state: Dict[str, Any], context: Dict[str, Any]) -
     console.print(
         f"\n{theme_char}  [dim]Resuming[/dim] "
         f"[{focus}]{label}[/{focus}] "
-        f"[dim]({target_tid}) — {len(new_state['messages'])} messages[/dim]\n"
+        f"[dim]({target_tid}) — {len(new_state['messages'])} messages\n[/dim]"
     )
 
     return CommandResult(state=new_state, render=True)
@@ -374,3 +343,18 @@ def register_session_commands(registry: CommandRegistry) -> None:
                 f"kept the newest {MAX_SESSIONS}.[/dim]"
             )
         return CommandResult()
+
+    # --- Persona Switching Commands ---
+    from cmd.persona.persona import switch_persona_handler
+    
+    @registry.register("/default", description="Switch to default persona")
+    def handle_default(args: str, state: Dict[str, Any], context: Dict[str, Any]) -> CommandResult:
+        return switch_persona_handler("default")(args, state, context)
+
+    @registry.register("/plan", description="Switch to planning persona")
+    def handle_plan(args: str, state: Dict[str, Any], context: Dict[str, Any]) -> CommandResult:
+        return switch_persona_handler("planner")(args, state, context)
+
+    @registry.register("/review", description="Switch to reviewer persona")
+    def handle_review(args: str, state: Dict[str, Any], context: Dict[str, Any]) -> CommandResult:
+        return switch_persona_handler("reviewer")(args, state, context)

@@ -4,6 +4,9 @@ import threading
 import random
 from typing import Optional
 
+# Global reference to the active animation to allow control from other modules
+active_animation: Optional["ThinkingAnimation"] = None
+
 class ThinkingAnimation:
     """A simple spinner animation that runs in a separate thread with synchronization lock"""
     
@@ -40,18 +43,22 @@ class ThinkingAnimation:
             
     def start(self):
         """Start the spinner animation"""
+        global active_animation
+        active_animation = self
         self.action = random.choice(self.actions)
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._animate, daemon=True)
         self._thread.start()
     
     def stop(self):
-        """Stop the spinner animation and clear the line"""
+        """Stop the spinner and clear its line. No-op if not running."""
+        if not self._thread:
+            return                      # <- key fix: don't clear lines you didn't draw
         self._stop_event.set()
-        if self._thread:
-            self._thread.join() # Wait indefinitely for the thread to finish its last loop
-        
+        self._thread.join()
+        self._thread = None
         with self.lock:
-            # Clear the line completely
-            sys.stdout.write("\r" + " " * 80 + "\r")
+            sys.stdout.write("\r\033[2K")   # erase whole line, any terminal width
             sys.stdout.flush()
+        global active_animation
+        active_animation = None

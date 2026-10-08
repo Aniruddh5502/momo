@@ -19,17 +19,14 @@ from prompt_toolkit import PromptSession
 from rich.console import Console
 
 # Modular Imports
-from bootstrap                  import sessions_db
-from tools.taskState            import load, Task
-from tools.basic_tools          import base_tools
-from utils.bootstrap            import build_system_prompt
-from core.state                 import AgentState
-from ui.animation               import ThinkingAnimation
-from cmd.registry               import CommandRegistry
-from cmd.session_cmds           import register_session_commands
+from momobot.bootstrap import SESSIONS_DB as sessions_db, prompt_builder
+from momobot.tools.taskState            import load, Task
+from momobot.core.state                 import AgentState
+from momobot.core.factory               import AgentFactory
+from momobot.cmd.registry               import CommandRegistry
+from momobot.cmd.session_cmds           import register_session_commands
 
 console = Console()
-anim = ThinkingAnimation()
 
 theme_char      =   "✽"
 book_cloth      =   "#CC785C"
@@ -38,48 +35,65 @@ focus           =   "#61AAF2"
 white           =   "#FFFFFF"
 black           =   "#000000"
 cloud_light     =   "#BFBFBA"
-
+cloud_dark      =   "#666663"
 
 
 class MomobotAgent:
     def __init__(self, config: dict):
         self.config = config
+        self.factory = AgentFactory()
         
-        self.model = config.get("model", "gemma4:31b-cloud")
         self.base_url = config.get("base_url", "http://localhost:11434")
         self.context = config.get("context", 50000)
         self.recent_window = config.get("recent_window", 6)
         
-        # LLM Setup
-        self.llm = ChatOllama(
-            model=self.model,
-            reasoning=False,
-            base_url=self.base_url,
-            num_ctx=100000,
-            stream=False,
-        ).bind_tools(tools=base_tools)
-
-        self.llm_think = ChatOllama(
-            model=self.model,
-            reasoning=True,
-            base_url=self.base_url,
-            num_ctx=100000,
-            stream=False,
-        ).bind_tools(tools=base_tools)
-
+        # Persona Management
+        self.active_persona = config.get("active_persona", "default")
+        self._setup_persona()
+        
         # Persistence Setup
-        # SqliteSaver.from_conn_string is a context manager. 
-        # For a long-lived agent, we should use a direct connection.
         self.conn = sqlite3.connect(sessions_db, check_same_thread=False)
         self.checkpointer = SqliteSaver(self.conn)
-
+        
         self.graph = self._build_graph()
         self.app = self.graph.compile(checkpointer=self.checkpointer)
 
+    def _setup_persona(self):
+        """Configures the LLMs based on the active persona."""
+        persona_cfg = self.factory.get_persona_config(self.active_persona)
+        
+        # Standard LLM
+        self.llm = self.factory.create_llm(
+            persona_id=self.active_persona,
+            base_url=self.base_url,
+            use_reasoning_model=False
+        )
+        
+        # Reasoning LLM
+        self.llm_think = self.factory.create_llm(
+            persona_id=self.active_persona,
+            base_url=self.base_url,
+            use_reasoning_model=True
+        )
+        
+        # Local import to avoid circular dependency with registry
+        from momobot.tools.registry import registry
+        self.current_tools = registry.get_tools(persona_cfg.get("tools", ["core"]))
+
+    def switch_persona(self, persona_id: str):
+        """Switches the active persona and re-configures LLMs and tools."""
+        console.print(f"[{focus} on {cloud_dark}] Switching to persona: [/] [bold {book_cloth}] {theme_char} {persona_id}[/]")
+        self.active_persona = persona_id
+        self._setup_persona()
+        
+        # Re-build and re-compile the graph to update the ToolNode with new tools
+        self.graph = self._build_graph()
+        self.app = self.graph.compile(checkpointer=self.checkpointer)
+        
     def _build_graph(self):
         workflow = StateGraph(AgentState)
         workflow.add_node("reasoning", self.reasoning_node)
-        workflow.add_node("tools", ToolNode(tools=base_tools))
+        workflow.add_node("tools", ToolNode(tools=self.current_tools))
         workflow.add_node("compaction", self.compaction_node)
 
         workflow.add_edge(START, "reasoning")
@@ -94,9 +108,8 @@ class MomobotAgent:
         )
         workflow.add_edge("tools", "reasoning")
         workflow.add_edge("compaction", "reasoning")
-        
-        return workflow
 
+        return workflow
     def should_continue(self, state: AgentState):
         messages = state.get("messages", [])
         if not messages:
@@ -112,18 +125,24 @@ class MomobotAgent:
         return "end"
 
     def reasoning_node(self, state: AgentState) -> AgentState:
-        anim.start()
         from ollama._types import ResponseError
         summary = state.get("summary", "")
         
         try:
-            system_prompt_text = build_system_prompt(state)
-            if system_prompt_text is None:
-                system_prompt_text = "You are Momobot, a high-performance AI agent."
+            # Use the structured PromptBuilder and pass the active persona prompt
+            persona_cfg = self.factory.get_persona_config(self.active_persona)
+            persona_prompt = persona_cfg.get("system_prompt", "")
+            persona_path = persona_cfg.get("system_prompt_path", "")
+            
+            system_prompt_text = prompt_builder.build_system_prompt(
+                state=state, 
+                persona_prompt=persona_prompt,
+                persona_path=persona_path
+            )
         except Exception:
             system_prompt_text = "You are Momobot, a high-performance AI agent."
             
-        system_prompt_message = SystemMessage(content=system_prompt_text)
+        system_prompt_message = SystemMessage(content=system_prompt_text + summary)
 
         for attempt in range(5):
             try:
@@ -135,17 +154,17 @@ class MomobotAgent:
                     response = self.llm.invoke([system_prompt_message] + state["messages"])
                 
                 token_usages = response.response_metadata.get("prompt_eval_count", 0)
-                anim.stop()
+                
                 return {"messages": [response], "token_usages": token_usages}
             
             except ResponseError as e:
-                anim.stop()
+
                 if e.status_code in (500, 502, 503, 504) and attempt < 4:
                     time.sleep(3 * (attempt + 1))
                 else:
                     raise
             except Exception as e:
-                anim.stop()
+
                 console.print(f"{theme_char} [dim]Error: {e}[/dim]")
                 err_msg = AIMessage(content=f"{theme_char} LLM call failed. Check Ollama. Error: {e}")
                 return {"messages":[err_msg],'token_usages':0}
@@ -158,7 +177,7 @@ class MomobotAgent:
         if not to_compress:
             return state
 
-        anim.start()
+
         existing_summary = state.get("summary", "")
         
         root = Path(__file__).parent.parent
@@ -173,7 +192,7 @@ class MomobotAgent:
         new_summary = response.content
         
         removal_list = [RemoveMessage(id=m.id) for m in to_compress if m.id]
-        anim.stop()
+
         return {
             "messages": removal_list,
             "summary": new_summary,
@@ -181,7 +200,13 @@ class MomobotAgent:
         }
 
     def run(self, state: AgentState, thread_id: str = "default"):
-        # This generator will yield updates as they happen in the graph
+        """
+        Yields (mode, payload) tuples:
+        - ("messages", (chunk, metadata))  -> token-level chunk
+        - ("values",   state)              -> accumulated state snapshot
+        """
         config = {"configurable": {"thread_id": thread_id}}
-        for event in self.app.stream(state, config=config, stream_mode="values"):
-            yield event
+        for mode, payload in self.app.stream(
+            state, config=config, stream_mode=["messages", "values"]
+        ):
+            yield mode, payload

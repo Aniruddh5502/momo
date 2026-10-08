@@ -9,12 +9,17 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.markup import escape
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages import (
+    HumanMessage, AIMessage, AIMessageChunk, BaseMessage, ToolMessage
+)
 from bootstrap import config
+from ui.animation import ThinkingAnimation
 from core.engine import MomobotAgent
 from core.state import AgentState
 from cmd.registry import CommandRegistry, CommandResult
 from cmd.session_cmds import register_session_commands, register_session_name
+
+anim = ThinkingAnimation()
 
 # Set up professional logging for the UI layer
 logger = logging.getLogger("momobot.ui.cli")
@@ -38,6 +43,13 @@ class MomobotInterface:
         self.config = config
         self.console = Console()
         self.registry = CommandRegistry()
+        self._last_printed_index = 0
+
+        # Streaming flags
+        self._stream_open = False       # mid-way through an answer block?
+        self._reasoning_open = False    # mid-way through a reasoning block?
+        self._streamed_any = False      # did anything visible stream this turn?
+
         register_session_commands(self.registry)
 
         self.theme_char = config.get("theme_char", "✽")
@@ -47,12 +59,9 @@ class MomobotInterface:
         # The thread_id is the key for LangGraph persistence
         self.current_thread_id = str(uuid.uuid4())[:8]
 
-        # State is now partially managed by the checkpointer,
+        # State is partially managed by the checkpointer,
         # but we keep a local mirror for UI responsiveness
         self.state: AgentState = self._initialize_state()
-
-        # Track message indices to avoid re-printing history
-        self._last_printed_index = 0
 
     def _initialize_state(self) -> AgentState:
         """Creates a clean starting state for the agent."""
@@ -69,16 +78,21 @@ class MomobotInterface:
     def _make_session(self) -> PromptSession:
         """Configures the prompt toolkit session with production keybindings."""
         bindings = KeyBindings()
+
         @bindings.add("escape", "enter")
         def _submit(event):
             event.current_buffer.validate_and_handle()
+
         @bindings.add("enter")
         def _newline(event):
             event.current_buffer.insert_text("\n")
+
         return PromptSession(key_bindings=bindings, multiline=True)
 
+    # ------------------------------------------------------------------
+    # Rendering (used for replay and as a fallback when nothing streamed)
+    # ------------------------------------------------------------------
     def _render_message(self, message: BaseMessage):
-
         if isinstance(message, HumanMessage):
             self.console.print(" ")
             self.console.rule(style="dim")
@@ -89,29 +103,28 @@ class MomobotInterface:
             self.console.rule(style="dim")
 
         elif isinstance(message, AIMessage):
+            
             reasoning = message.additional_kwargs.get("reasoning_content")
             if reasoning:
-                self.console.print(Panel(
-                    escape(reasoning),
-                    title=f"[{self.ai_response}] Reasoning",
-                    title_align="left",
-                    border_style="dim",
-                    style="italic dim",
-                ))
+                self.console.print(f"[dim]{self.theme_char} {escape(str(reasoning))}[/dim]")
 
             if message.content:
                 self.console.print("")
-                self.console.print(f"{self.ai_response} ", end="")
+                self.console.print(f"[{book_cloth}]{self.theme_char}[/] ", end="")
                 self.console.print(Markdown(message.content))
                 self.console.print("")
 
-            
         elif isinstance(message, ToolMessage):
             self._render_tool_result(message)
 
     def _render_tool_result(self, message):
         """Render a ToolMessage using the standardized create_tool_response shape."""
         name = getattr(message, "name", None) or "tool"
+
+        # Sub-agent progress and result are printed live by the tool itself
+        # (momobot/tools/subagent_tools.py); nothing to render here.
+        if name == "delegate_to_subagent":
+            return
 
         # --- Normalize content (str, list of content blocks, or other) ---
         content = message.content
@@ -147,7 +160,7 @@ class MomobotInterface:
         meta       = parsed.get("metadata") or {}
 
         marker = {"success": "✓", "warning": "!", "error": "✗"}.get(status, "·")
-        color  = {"success": "green", "warning": "yellow", "error": "red"}.get(status, "dim")
+        color  = {"success": f"{focus}", "warning": "yellow", "error": f"{error}"}.get(status, "dim")
 
         # --- One-line summary ---
         # Priority: state_delta (what the tool did) > error_message > nothing
@@ -175,14 +188,9 @@ class MomobotInterface:
                     f"     [dim]hint:[/dim] [yellow]{escape(str(hint))}[/yellow]"
                 )
 
-            color = {"success": "green", "warning": "yellow", "error": "red"}.get(status, "dim")
-            name = getattr(message, "name", None) or "tool"
-            self.console.print(f"{theme_char} [dim]{name}[/dim]  result  [{color}]{status}[/{color}]")
-
     def display_updates(self, state: AgentState, show_footer: bool = False):
         """
-        Analyzes the state and prints only the new messages
-        generated since the last update.
+        Prints only the messages generated since the last update.
         """
         messages = state.get("messages", [])
 
@@ -195,8 +203,21 @@ class MomobotInterface:
 
         usages = state.get("token_usages", 0)
         cols, _ = shutil.get_terminal_size(fallback=(80, 24))
-        footer = f"[dim]Token Usages: {usages}[/dim]"
-        self.console.print(f"\n{' ' * (cols - len(footer))} {footer}")
+        plain = f"Token Usages: {usages}"          # measure without markup
+        pad = max(0, cols - len(plain))
+        self.console.print(f"\n{' ' * pad}[dim]{plain}[/dim]")
+
+    # ------------------------------------------------------------------
+    # Input handling
+    # ------------------------------------------------------------------
+    def _close_open_blocks(self):
+        """Terminate any in-progress reasoning/answer block with a newline."""
+        if self._reasoning_open:
+            self.console.print("\n")
+            self._reasoning_open = False
+        if self._stream_open:
+            self.console.print("")
+            self._stream_open = False
 
     def handle_input(self, user_input: str) -> Optional[bool]:
         user_input = user_input.strip()
@@ -209,8 +230,6 @@ class MomobotInterface:
                     {"configurable": {"thread_id": self.current_thread_id}},
                     self.state,
                 )
-                # Make sure the session appears in /sessions even if it never
-                # got a chance to register (e.g. user exits before first reply).
                 register_session_name(self.current_thread_id, user_input)
                 self.console.print(
                     f"{self.theme_char} [dim]Session {self.current_thread_id} saved.[/dim]"
@@ -232,15 +251,10 @@ class MomobotInterface:
                 self._last_printed_index = 0
                 self.display_updates(self.state)          # no footer on replay
             else:
-                # Skip anything already in state (avoid re-printing history).
                 self._last_printed_index = len(self.state.get("messages", []))
             return True
 
         # --- Regular chat: hand off to the agent ---
-
-        # Register/refresh session name based on the first 50 chars of the
-        # first user message. Safe to call every turn — it only sets the
-        # name once and bumps `updated_at` thereafter.
         register_session_name(self.current_thread_id, user_input)
 
         reasoning_mode = False
@@ -253,23 +267,97 @@ class MomobotInterface:
         self.state["reasoning"] = reasoning_mode
         self.state["last_action"] = "input"
 
-        self._last_printed_index = len(self.state["messages"])
+        start_idx = len(self.state["messages"])
+
+        self._stream_open = False
+        self._reasoning_open = False
+        self._streamed_any = False
+
+        anim.start()
 
         try:
-            for event in self.agent.run(
-                self.state,
-                thread_id=self.current_thread_id,
+            for mode, payload in self.agent.run(
+                self.state, thread_id=self.current_thread_id
             ):
-                self.state = event
-                self.display_updates(self.state)                 # stream, no footer
+                if mode == "messages":
+                    chunk, metadata = payload
+                    self._handle_stream_chunk(chunk, metadata)
+                elif mode == "values":
+                    self.state = payload
 
-            self.display_updates(self.state, show_footer=True)   # footer, once
+            anim.stop()
+            self._close_open_blocks()
+
+            messages = self.state.get("messages", [])
+            if self._streamed_any:
+                self._last_printed_index = len(messages)
+            else:
+                self._last_printed_index = min(start_idx, len(messages))
+            self.display_updates(self.state, show_footer=True)
+
         except Exception as e:
+            anim.stop()
+            self._close_open_blocks()
             logger.exception("Error during agent execution")
             self.console.print(f"[bold red]Critical Error:[/bold red] {escape(str(e))}")
             self.console.print("[dim]Please check logs for details.[/dim]")
+        finally:
+            anim.stop()
 
         return True
+
+    def _handle_stream_chunk(self, chunk, metadata):
+        """Print AI tokens as they arrive; print tool results whole."""
+        node = (metadata or {}).get("langgraph_node", "")
+        if node == "compaction":
+            return
+
+        if isinstance(chunk, AIMessageChunk):
+            reasoning = (chunk.additional_kwargs or {}).get("reasoning_content")
+            content = chunk.content
+
+            if isinstance(content, list):
+                content = "".join(
+                    b.get("text", "") if isinstance(b, dict) else str(b)
+                    for b in content
+                )
+
+            if content and not self._stream_open:
+                content = content.lstrip("\n")
+
+            if reasoning or content:
+                anim.stop()
+
+            if reasoning:
+                if not self._reasoning_open:
+                    self.console.print(f"[dim]{self.theme_char} thinking[/dim]")
+                    self._reasoning_open = True
+                self._streamed_any = True
+                self.console.print(
+                    str(reasoning),
+                    end="", markup=False, highlight=False, soft_wrap=True,
+                    style="dim",
+                )
+
+            if content:
+                if self._reasoning_open:
+                    self.console.print("\n")
+                    self._reasoning_open = False
+                if not self._stream_open:
+                    self.console.print(f"[{book_cloth}]{self.theme_char}[/] ", end="")
+                    self._stream_open = True
+                self._streamed_any = True
+                self.console.print(
+                    content,
+                    end="", markup=False, highlight=False, soft_wrap=True,
+                )
+
+        elif isinstance(chunk, ToolMessage):
+            anim.stop()
+            self._close_open_blocks()
+            self._streamed_any = True
+            self._render_tool_result(chunk)
+            anim.start()
 
     def run(self):
         """Main execution loop for the CLI."""
@@ -291,16 +379,14 @@ class MomobotInterface:
                 self.console.rule(style="dim")
             except KeyboardInterrupt:
                 self.console.rule(style="dim")
-                try:
-                    self.console.print(f"\n{theme_char} Exiting..\n")
-                except Exception as e:
-                    self.console.print(f"\n[dim red]Could not save session: {e}[/dim red]")
+                self.console.print(f"\n{theme_char} Exiting..\n")
                 break
 
             if not self.handle_input(user_input):
                 self.console.rule(style="dim")
                 break
 
+        return True
 
 def main():
     import bootstrap
@@ -308,9 +394,8 @@ def main():
 
     config = bootstrap.config
     agent = MomobotAgent(config)
-    interface = MomobotInterface(agent, config)
+    interface = MomobotInterface(agent=agent, config=config)
     interface.run()
-
 
 if __name__ == "__main__":
     main()

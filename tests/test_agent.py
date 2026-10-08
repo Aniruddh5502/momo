@@ -1,6 +1,6 @@
 import unittest
-from core.engine import MomobotAgent
-from core.state import AgentState
+from momobot.core.engine import MomobotAgent
+from momobot.core.state import AgentState
 from langchain_core.messages import HumanMessage, AIMessage
 
 class TestMomobotAgent(unittest.TestCase):
@@ -20,6 +20,14 @@ class TestMomobotAgent(unittest.TestCase):
         self.assertIsNotNone(self.agent.app)
         self.assertIsNotNone(self.agent.llm)
 
+    def _consume_run(self, state: AgentState) -> AgentState:
+        """Helper to consume the run generator and return the final state."""
+        final_state = state.copy()
+        for mode, payload in self.agent.run(state):
+            if mode == "values":
+                final_state = payload
+        return final_state
+
     def test_run_loop_execution(self):
         """Test if the agent can process a simple input and return a state."""
         initial_state: AgentState = {
@@ -33,7 +41,7 @@ class TestMomobotAgent(unittest.TestCase):
         }
         
         try:
-            final_state = self.agent.run(initial_state)
+            final_state = self._consume_run(initial_state)
             
             # Verify state is returned
             self.assertIsInstance(final_state, dict)
@@ -57,16 +65,12 @@ class TestMomobotAgent(unittest.TestCase):
         }
         
         # Turn 1
-        print("# TEST 3: Self persistance Test\n")
-        state = self.agent.run(state)
-        print("## Initial State\n")
-        print(state)
+        state = self._consume_run(state)
         
         # Turn 2: Add a new message to the existing state
         state["messages"].append(HumanMessage(content="What is my name?"))
-        final_state = self.agent.run(state)
-        print("\n# FINAL STATE\n")
-        print(final_state)
+        final_state = self._consume_run(state)
+        
         self.assertTrue(len(final_state["messages"]) > 2)
         self.assertIsInstance(final_state["messages"][-1], AIMessage)
 

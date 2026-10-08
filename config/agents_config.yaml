@@ -1,0 +1,44 @@
+agents:
+  default:
+    model: "gemma4:31b-cloud"
+    system_prompt_path: "prompts/soul.md"
+    tools: ["core", "web", "harness"]
+    temperature: 0.2
+    reasoning: false
+
+  planner:
+    model: "gemma4:31b-cloud"
+    system_prompt_path: "prompts/soul.md"
+    system_prompt: "You are the Planning Persona of momobot. Your goal is to break down complex tasks into deterministic, verifiable steps."
+    tools: ["core", "harness", "delegation"]
+    temperature: 0.1
+    reasoning: true
+
+  reviewer:
+    model: "gemma4:31b-cloud"
+    system_prompt_path: "prompts/reviewer.md"
+    system_prompt: "You are the Review Persona of momobot. Your goal is to analyze failures and optimize the system prompt."
+    tools: ["core", "harness"]
+    temperature: 0.0
+    reasoning: true
+
+  executor:
+    model: "gemma4:31b-cloud"
+    system_prompt_path: "momobot/prompts/executor.md"
+    tools: ["core", "web"]
+    temperature: 0.1
+    reasoning: false
+
+  researcher:
+    model: "gemma4:31b-cloud"
+    system_prompt_path: "momobot/prompts/researcher.md"
+    tools: ["core", "web"]
+    temperature: 0.1
+    reasoning: false
+
+  critique:
+    model: "gemma4:31b-cloud"
+    system_prompt_path: "momobot/prompts/critique.md"
+    tools: ["core"]
+    temperature: 0.1
+    reasoning: false
