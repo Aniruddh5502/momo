@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "momo"
+version = "0.1.0"
+description = "A layered, reusable architecture for a local agent harness on LangGraph + Ollama"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "langchain-core",
+    "langchain-ollama",
+    "langgraph",
+    "pydantic",
+    "rich",
+    "ddgs",
+]
+
+[project.scripts]
+momo = "momo.cli.app:main"
+
+[tool.setuptools.packages.find]
+include = ["momo*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.md", "*.json", "*.log", "momo/momo_data/**/*"]

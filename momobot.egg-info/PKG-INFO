@@ -1,0 +1,662 @@
+Metadata-Version: 2.4
+Name: momobot
+Version: 0.1.0
+Summary: A layered, reusable architecture for a local agent harness on LangGraph + Ollama
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: langchain-core
+Requires-Dist: langchain-ollama
+Requires-Dist: langgraph
+Requires-Dist: pydantic
+Requires-Dist: rich
+
+## / commands
+- /init     Initalizes the momo.md and summary and mapping of codebase.
+- /btw      Asks a side question, not relating to the main session
+- /review   will take a prompt, folders momo.md but in HumanMessage as a context and reviews the work[needs better specification]
+- /clear    Clears the context, saves the previos session in the diska and starts a new session
+- /compact  Starts compacting the context
+
+
+#### Characters
+
+
+- ["·", "✢", "✶", "✻", "✽", "✻", "✶", "✢"]
+- └
+- ✢ ✳ ✳ ✻ ✽ ✻ ✳ ✳ 
+
+### AGENT ARCHITECTURE
+
+#### WORKSPACE
+
+.momo/
+    |-- momo.md             # project structure, notes, technologoes, preferences
+    |-- subagent.json       # subagent architecturs. Project specific works
+    |-- skills/
+            |-- plotting/
+            |       |-- SKILL.md
+            |       |-- scripts/
+            |-- code-review/
+                    |-- SKILL.md
+                    |-- scripts/
+
+
+# Momobot Restructuring Plan
+
+> A layered, reusable architecture for a Claude Code–style local agent harness on LangGraph + Ollama. Phase 1 is specified down to signatures; later phases are outlined.
+
+---
+
+## 1. Overview
+
+### Goals
+
+- One `Agent` implementation reused by the main agent and every subagent.
+- Everything that defines behavior (prompts, tool subsets, skills, subagents, commands) lives in **files**, resolved in layers: builtin → global → project.
+- The agent is rebuilt from config on every prompt. Nothing about agent behavior is cached in memory between prompts.
+- The CLI is a pure renderer over an append-only event log, so a stored session replays exactly as it looked live.
+- Persistent sessions in SQLite. Subagents are just sessions with a `parent_id`.
+
+### Design rules
+
+1. **Data vs. behavior.** `AgentSpec` is data. `Agent` is behavior. Main agent and subagent differ only in spec.
+2. **Tools are fixed per spec.** A spec lists tool names once; the set never changes mid-session.
+3. **Two logs, not one.** Messages (LLM context, rewritten by compaction) and events (render log, append-only) are stored separately.
+4. **Static prefix first.** The system prompt puts stable content first and dynamic content (skills index, subagent list) last, so Ollama's prompt-prefix reuse keeps prefill cheap.
+5. **The harness owns I/O.** The `Agent` knows nothing about the DB or the terminal. It yields events; the harness persists and renders them.
+
+### Request flow
+
+```
+user input
+   │
+   ▼
+Harness.handle(input)
+   ├─ starts with "/" ?  → CommandRegistry.dispatch()  (python / prompt / agent command)
+   └─ otherwise:
+        resolve resources → build AgentSpec → PromptBuilder → Agent.compile()
+        Agent.run(session, text)  ──yields──▶ Event
+                                               ├─ SessionStore.append_event()
+                                               └─ Renderer.render()
+        SessionStore.save_messages()
+```
+
+---
+
+## 2. Target Layout
+
+```
+momobot/
+  core/
+    spec.py          AgentSpec, ToolPolicy
+    agent.py         Agent (compile + run)
+    model.py         ModelFactory
+    compactor.py     TokenTracker, Compactor
+    prompt.py        PromptBuilder
+    events.py        Event, EventType
+    harness.py       Harness
+  tools/
+    registry.py      ToolRegistry
+    shell.py  files.py  web.py  memory.py  image.py  ocr.py
+  store/
+    db.py            connection + migrations
+    sessions.py      Session, SessionStore
+  cli/
+    app.py           REPL loop
+    renderer.py      Renderer (live + replay)
+    commands.py      builtin PythonCommands
+  resources/         (Phase 2)
+    resolver.py  skills.py  agents.py  commands.py
+  builtin/           repo-level defaults ("global" layer)
+    agents/  skills/  commands/  prompts/
+```
+
+Per-project data (Phase 2):
+
+```
+<project>/.momo/
+  MOMO.md            project instructions
+  agents/*.md        project subagent definitions
+  skills/*/SKILL.md
+  commands/*.md
+  sessions.db
+```
+
+---
+
+## 3. Phase 1 Specification
+
+Phase 1 delivers: one agent, fixed tools, compaction, persistent sessions, exact replay, and a few Python slash commands. No subagents, no project folders yet.
+
+### 3.1 `core/events.py`
+
+Events are the unit of both persistence and rendering. Every event must carry everything the renderer needs, so replay never has to re-derive anything.
+
+```python
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+class EventType(str, Enum):
+    USER_MESSAGE     = "user_message"
+    ASSISTANT_TEXT   = "assistant_text"      # may be emitted in chunks or whole
+    ASSISTANT_THINK  = "assistant_think"     # optional reasoning content
+    TOOL_CALL        = "tool_call"           # name, args, call_id
+    TOOL_RESULT      = "tool_result"         # call_id, display payload, is_error
+    COMPACTION       = "compaction"          # summary text, tokens before/after
+    USAGE            = "usage"               # prompt_eval_count, eval_count
+    ERROR            = "error"
+    TURN_END         = "turn_end"
+
+@dataclass
+class Event:
+    type: EventType
+    payload: dict[str, Any]
+    session_id: str = ""
+    seq: int = 0                              # assigned by the store
+    ts: float = 0.0
+```
+
+> **Note:** Store the *rendered* form of tool results (truncated output, exit code, file diff) in the event payload, separately from the raw tool message in the message log.
+
+### 3.2 `core/spec.py`
+
+```python
+from dataclasses import dataclass, field
+
+@dataclass(frozen=True)
+class AgentSpec:
+    name: str                          # "main", "researcher", ...
+    model: str                         # Ollama model tag
+    num_ctx: int
+    prompt_sections: list[str]         # ordered section names for PromptBuilder
+    tools: list[str]                   # tool names, resolved via ToolRegistry
+    max_context_tokens: int            # compaction threshold
+    keep_recent_messages: int = 6      # preserved verbatim after compaction
+    max_iterations: int = 50           # hard cap on reasoning loops per turn
+    temperature: float = 0.2
+    extra: dict = field(default_factory=dict)   # future: permissions, hooks
+```
+
+Phase 2 adds `AgentSpec.from_markdown(path)`: YAML frontmatter for the fields above, markdown body as the agent's prompt section.
+
+### 3.3 `tools/registry.py`
+
+```python
+from langchain_core.tools import BaseTool
+
+class ToolRegistry:
+    def register(self, tool: BaseTool, *, tags: set[str] | None = None) -> None: ...
+    def get(self, name: str) -> BaseTool: ...                 # raises KeyError with available names
+    def resolve(self, names: list[str]) -> list[BaseTool]: ...  # preserves order
+    def names(self) -> list[str]: ...
+```
+
+Rules:
+
+- Registration happens once at startup via `register_all(registry, ctx)`.
+- Tools needing runtime context (project root, session id, shell handle) receive it through a `ToolContext` object bound at registration, not through globals.
+- Resolve returns tools in the order the spec lists them. Order is part of the prompt prefix, so keep it deterministic.
+
+```python
+@dataclass
+class ToolContext:
+    project_root: Path
+    session_id: str
+    shell: "PersistentShell"
+```
+
+### 3.4 `core/model.py`
+
+```python
+from langchain_ollama import ChatOllama
+
+class ModelFactory:
+    def __init__(self, base_url: str = "http://localhost:11434"): ...
+
+    def build(self, spec: AgentSpec, tools: list[BaseTool]) -> "Runnable":
+        """ChatOllama(model, num_ctx=spec.num_ctx, temperature, ...).bind_tools(tools)"""
+```
+
+`num_ctx` must always be passed explicitly. Without it Ollama falls back to a small default context and can truncate the prompt silently, making the compaction threshold meaningless.
+
+### 3.5 `core/prompt.py`
+
+```python
+class PromptBuilder:
+    def __init__(self, sections_dir: Path): ...
+
+    def build(
+        self,
+        spec: AgentSpec,
+        tools: list[BaseTool],
+        *,
+        dynamic: dict[str, str] | None = None,   # skills index, subagent list, memory
+    ) -> str: ...
+```
+
+Ordering of the assembled prompt:
+
+| Order | Section | Changes how often |
+| :---: | :--- | :--- |
+| 1 | Identity / soul | rarely |
+| 2 | Thinking pattern, tool-use guidance | rarely |
+| 3 | Tool descriptions (if appended manually) | when tools change |
+| 4 | Project instructions (`MOMO.md`) | per project |
+| 5 | Skills index (name + description) | per project |
+| 6 | Subagent index | per project |
+| 7 | Memory / environment (cwd, date, OS) | every prompt |
+
+Keep volatile items such as the date and cwd at the very end so they do not invalidate the cached prefix.
+
+### 3.6 `core/compactor.py`
+
+```python
+@dataclass
+class TokenTracker:
+    max_context: int
+    last_prompt_tokens: int = 0
+    last_completion_tokens: int = 0
+
+    def update_turn(self, response_metadata: dict) -> None: ...   # prompt_eval_count, eval_count
+    def estimate(self, messages: list) -> int: ...                # fallback when no count yet (resume)
+    def usage_percent(self) -> float: ...
+    def needs_compaction(self, messages: list) -> bool: ...
+
+class Compactor:
+    def __init__(self, summarizer: "Runnable", tracker: TokenTracker, keep_recent: int): ...
+
+    def compact(self, messages: list) -> CompactionResult: ...
+    # 1. split: [system] + old + recent (recent = last keep_recent, never splitting an AI tool_call from its ToolMessage)
+    # 2. summarize old via the model
+    # 3. return new message list: system + summary message + recent
+
+@dataclass
+class CompactionResult:
+    messages: list
+    summary: str
+    tokens_before: int
+    tokens_after: int
+    dropped_ids: list[str]        # message ids to mark compacted in the DB
+```
+
+Pitfalls to handle explicitly:
+
+- **Resume has no `prompt_eval_count`.** After loading a session the tracker has no real count, so use `estimate()` (about chars / 3.5) until the first model response arrives.
+- **Never split a tool-call pair.** An `AIMessage` with `tool_calls` and its `ToolMessage` replies must stay on the same side of the cut.
+- **Summarize the summary.** If the old region already starts with a prior compaction summary, include it in the next one rather than dropping it.
+- **Compaction node passes through** when under threshold, so the graph topology stays fixed.
+
+### 3.7 `core/agent.py`
+
+```python
+class Agent:
+    def __init__(
+        self,
+        spec: AgentSpec,
+        system_prompt: str,
+        tools: list[BaseTool],
+        model: "Runnable",
+        compactor: Compactor,
+    ): ...
+
+    def compile(self) -> None:
+        """Build the StateGraph: REASONING -> (tool_calls? TOOL_NODE : END); TOOL_NODE -> COMPACT -> REASONING."""
+
+    def run(self, messages: list, user_input: str) -> Iterator[Event]:
+        """Append the user message, stream the graph, yield Events.
+        The final message list is available afterwards via self.messages."""
+
+    @property
+    def messages(self) -> list: ...
+```
+
+Graph state:
+
+```python
+class AgentState(TypedDict):
+    messages: Annotated[list[AnyMessage], add_messages]
+    iterations: int
+```
+
+Node responsibilities:
+
+| Node | Does | Emits |
+| :--- | :--- | :--- |
+| `reasoning` | Invoke model with system prompt + messages | `ASSISTANT_TEXT`, `TOOL_CALL`, `USAGE` |
+| `tool_node` | Execute tool calls, catch exceptions into error `ToolMessage`s | `TOOL_RESULT` |
+| `compact` | Check threshold, compact if needed | `COMPACTION` |
+| (edge) | Stop at `max_iterations` | `ERROR` or `TURN_END` |
+
+Robustness for local models:
+
+- Validate tool-call args against the tool's schema before executing. On a malformed call, return an error `ToolMessage` describing the fix so the model can retry; do not crash the loop.
+- Cap consecutive malformed calls (for example 3) and then end the turn with an `ERROR` event.
+- Convert tool exceptions into `ToolMessage(content=..., status="error")`.
+
+### 3.8 `store/db.py` and `store/sessions.py`
+
+Schema:
+
+```sql
+CREATE TABLE sessions (
+  id           TEXT PRIMARY KEY,
+  parent_id    TEXT REFERENCES sessions(id),   -- NULL for main sessions
+  agent_name   TEXT NOT NULL,
+  project_root TEXT NOT NULL,
+  spec_json    TEXT NOT NULL,                  -- snapshot of AgentSpec at creation
+  title        TEXT,
+  created_at   REAL NOT NULL,
+  updated_at   REAL NOT NULL
+);
+
+CREATE TABLE messages (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id  TEXT NOT NULL REFERENCES sessions(id),
+  seq         INTEGER NOT NULL,
+  msg_json    TEXT NOT NULL,                   -- serialized LangChain message
+  compacted   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(session_id, seq)
+);
+
+CREATE TABLE events (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id  TEXT NOT NULL REFERENCES sessions(id),
+  seq         INTEGER NOT NULL,
+  type        TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  ts          REAL NOT NULL,
+  UNIQUE(session_id, seq)
+);
+
+CREATE INDEX idx_events_session ON events(session_id, seq);
+CREATE INDEX idx_messages_session ON messages(session_id, seq);
+```
+
+```python
+@dataclass
+class Session:
+    id: str
+    parent_id: str | None
+    agent_name: str
+    project_root: Path
+    spec: AgentSpec
+    title: str | None
+
+class SessionStore:
+    def __init__(self, db_path: Path): ...
+
+    def create(self, spec: AgentSpec, project_root: Path, parent_id: str | None = None) -> Session: ...
+    def get(self, session_id: str) -> Session: ...
+    def list(self, project_root: Path | None = None, limit: int = 50) -> list[Session]: ...
+    def latest(self, project_root: Path) -> Session | None: ...
+
+    # LLM context
+    def load_messages(self, session_id: str) -> list[BaseMessage]: ...      # compacted = 0 only
+    def replace_messages(self, session_id: str, messages: list[BaseMessage]) -> None: ...
+
+    # render log
+    def append_event(self, event: Event) -> Event: ...                      # assigns seq
+    def load_events(self, session_id: str, after_seq: int = 0) -> Iterator[Event]: ...
+```
+
+Use WAL mode (`PRAGMA journal_mode=WAL`) so a future subagent writing from another thread does not block the REPL.
+
+### 3.9 `core/harness.py`
+
+```python
+class Harness:
+    def __init__(
+        self,
+        settings: "Settings",
+        tools: ToolRegistry,
+        store: SessionStore,
+        renderer: "Renderer",
+        commands: "CommandRegistry",
+    ): ...
+
+    def handle(self, session: Session, text: str) -> None:
+        """Entry point for every line of user input."""
+        # 1. commands.try_dispatch(text) -> handled? return
+        # 2. spec = session.spec (or rebuild from files in Phase 2)
+        # 3. agent = self._build_agent(spec)
+        # 4. messages = store.load_messages(session.id)
+        # 5. for event in agent.run(messages, text): store.append_event(...); renderer.render(event)
+        # 6. store.replace_messages(session.id, agent.messages)
+
+    def new_session(self, agent_name: str = "main") -> Session: ...
+    def resume(self, session_id: str | None = None) -> Session: ...
+    def replay(self, session: Session) -> None:
+        """for event in store.load_events(...): renderer.render(event)"""
+
+    def _build_agent(self, spec: AgentSpec) -> Agent: ...
+```
+
+Persistence timing: write events as they stream, but write the message list once at the end of the turn (and also on `KeyboardInterrupt`, so an interrupted turn is not lost).
+
+### 3.10 `cli/renderer.py`
+
+```python
+class Renderer:
+    def render(self, event: Event) -> None: ...        # dispatch on event.type
+    def render_replay(self, events: Iterable[Event]) -> None: ...
+```
+
+The same `render` method serves live and replay. If you need a different look for replay (no spinners, no streaming animation), pass a `live: bool` flag rather than branching on the source.
+
+### 3.11 Commands (Phase 1 subset)
+
+```python
+@dataclass
+class CommandContext:
+    harness: Harness
+    session: Session
+    renderer: Renderer
+    args: str
+
+class Command(Protocol):
+    name: str
+    description: str
+    def run(self, ctx: CommandContext) -> "CommandResult": ...
+
+@dataclass
+class CommandResult:
+    handled: bool = True
+    inject_prompt: str | None = None     # PromptCommand: text to send to the agent
+    new_session: Session | None = None   # /clear, /resume switch the active session
+
+class CommandRegistry:
+    def register(self, cmd: Command) -> None: ...
+    def try_dispatch(self, text: str, ctx: CommandContext) -> CommandResult | None: ...
+```
+
+Initial Python commands: `/clear`, `/resume [id]`, `/sessions`, `/compact`, `/model`, `/help`, `/exit`.
+
+---
+
+## 4. Phase 2: Project Layer and Skills
+
+### Components
+
+```python
+class ProjectContext:
+    root: Path
+    momo_dir: Path                       # root / ".momo"
+    def ensure_initialized(self) -> None: ...   # creates .momo/ and the copied skills on /init
+
+class ResourceResolver:
+    """Generic layered loader. Layers in priority order: project > global (user) > builtin."""
+    def __init__(self, layers: list[Path]): ...
+    def find(self, kind: str, name: str) -> Path | None: ...
+    def list(self, kind: str) -> dict[str, Path]: ...        # later layers override earlier by name
+
+@dataclass
+class Skill:
+    name: str
+    description: str
+    path: Path
+
+class SkillRegistry:
+    def __init__(self, resolver: ResourceResolver): ...
+    def index(self) -> list[Skill]: ...                      # frontmatter only
+    def render_index(self) -> str: ...                       # goes into the prompt
+    def load(self, name: str) -> str: ...                    # full body, used by the load_skill tool
+```
+
+### Decisions
+
+- **Copy on `/init`, resolve afterwards.** Copy builtin skills into `.momo/skills/` only when the user runs `/init`. After that, the resolver prefers project files. Builtin skills the user never copied still resolve from the repo, so upgrades reach them.
+- **Spec snapshot.** A session stores `spec_json`. When files changed since creation, warn on resume instead of silently changing behavior. Provide `/refresh` to rebuild the spec from current files.
+- **Skills are lazy.** The prompt holds only name and description; the body loads through a `load_skill` tool call.
+- **`MOMO.md`** is project instructions, injected at prompt slot 4.
+
+---
+
+## 5. Phase 3: Subagents and Richer Commands
+
+### Subagent definition file
+
+```markdown
+---
+name: researcher
+description: Searches the web and summarizes findings
+tools: [web_search, web_fetch, read_file]
+model: gemma4:31b
+max_context_tokens: 50000
+---
+You are a research subagent. ...
+```
+
+### Components
+
+```python
+class AgentRegistry:
+    def __init__(self, resolver: ResourceResolver): ...
+    def index(self) -> list[AgentSpec]: ...
+    def render_index(self) -> str: ...
+    def get(self, name: str) -> AgentSpec: ...
+
+class SubagentManager:
+    def __init__(self, harness: Harness, store: SessionStore): ...
+    def spawn(self, parent: Session, agent_name: str, task: str) -> str:
+        """Creates a child session, runs it to completion, returns the final message."""
+    def resume(self, subagent_session_id: str, message: str) -> str: ...
+    def list(self, parent_id: str) -> list[Session]: ...
+```
+
+### The `task` tool
+
+The main agent delegates through a single tool:
+
+```
+task(agent: str, prompt: str, session_id: str | None) -> str
+```
+
+- No `session_id` → spawn a new persistent subagent session and return its result plus its id.
+- With `session_id` → resume that subagent, which keeps its prior messages.
+- The subagent's events are stored under its own session id, and the parent's `TOOL_RESULT` event carries a summary plus the child id so the CLI can expand it.
+
+### Command kinds
+
+| Kind | Source | Behavior |
+| :--- | :--- | :--- |
+| `PythonCommand` | Python function | No LLM call |
+| `PromptCommand` | `commands/*.md` template | Expands `$ARGUMENTS` and returns `inject_prompt` |
+| `AgentCommand` | `commands/*.md` with `agent:` frontmatter | Spawns a subagent with the expanded prompt |
+
+---
+
+## 6. Build Order
+
+1. `events.py`, `spec.py`, `ToolRegistry` with your existing tools
+2. `ModelFactory`, `PromptBuilder`, `Compactor`
+3. `Agent` (compile + run) with a hard-coded spec; test in a throwaway script
+4. `SessionStore` + `Harness` + `Renderer`; verify live render equals replay render
+5. Python commands: `/clear`, `/resume`, `/compact`
+6. Phase 2: `ProjectContext`, `ResourceResolver`, skills, `/init`
+7. Phase 3: agent registry, `SubagentManager`, `task` tool, prompt/agent commands
+8. Later: hooks, permissions, MCP tools via `langchain-mcp-adapters`
+
+---
+
+## 7. Testing Plan
+
+| Area | Test |
+| :--- | :--- |
+| Replay | Run a scripted session, dump rendered output, replay from the DB, diff the two outputs |
+| Compaction | Fake model with fixed token counts; assert tool-call pairs are never split and `compacted` flags are set |
+| Resume | Load a session with no `prompt_eval_count` and confirm `estimate()` is used |
+| Tools | Malformed args produce an error `ToolMessage`, not an exception |
+| Spec snapshot | Edit a skill file after session creation and confirm the warning appears on resume |
+| Resolver | Same skill name in project and builtin layers; project wins |
+
+---
+
+## 8. Known Risks and Open Questions
+
+- **Event payload size.** Storing full tool output in events bloats the DB. Truncate for display and keep the full output on the message side only.
+- **Streaming granularity.** Decide whether `ASSISTANT_TEXT` is stored per chunk or per completed message. Per message is simpler; per chunk allows a faithful replay of streaming. Per message is enough for Phase 1.
+- **Concurrency.** Subagents running in parallel need one SQLite connection per thread and WAL mode.
+- **Thinking content.** Models that emit reasoning separately need a decision: render it, store it, and whether to send it back to the model on later turns.
+- **Prompt-cache stability.** Any change to tool order or an early prompt section invalidates the cached prefix. Keep both deterministic.
+- **Spec drift.** Snapshot versus live files is a policy choice; the plan defaults to snapshot plus an explicit `/refresh`.
+
+---
+
+## 9. Cheat Sheet
+
+| Concern | Class | Phase |
+| :--- | :--- | :---: |
+| Agent definition as data | `AgentSpec` | 1 |
+| Tool set per agent | `ToolRegistry` | 1 |
+| Model construction | `ModelFactory` | 1 |
+| System prompt assembly | `PromptBuilder` | 1 |
+| Context management | `TokenTracker`, `Compactor` | 1 |
+| Agent loop | `Agent` | 1 |
+| Persistence | `SessionStore` | 1 |
+| Orchestration | `Harness` | 1 |
+| Display | `Renderer` | 1 |
+| Slash commands | `Command`, `CommandRegistry` | 1 (Python), 3 (prompt/agent) |
+| Layered config loading | `ResourceResolver` | 2 |
+| Project folder | `ProjectContext` | 2 |
+| Skills | `SkillRegistry` | 2 |
+| Subagent definitions | `AgentRegistry` | 3 |
+| Subagent lifecycle | `SubagentManager`, `task` tool | 3 |
+
+
+## ROUNNING IT
+
+```bash
+python -m momobot.cli.app
+```
+
+To resume latest session
+```bash
+python -m momobot.cli.app --resume
+```
+
+# Prompt Builder
+
+1. spec: AgentSpec
+This is a configuration object. The PromptBuilder looks at spec.prompt_sections = ["identity", "soul", "user"] names of prompt files without the .md extension in the prompts dir
+For example "user" -> makes the prompt builder read user.md
+
+2. tools: list[BaseTool]
+If the spec.prompt_sections list contains "@tools" keyword it loads the tools descriptions by triggering _render_tools. This generates a list of the tool names and their first line descriptions.
+
+3. dynamic: dict[str,str]|None
+This is a dictionary of key value pairs for information that changes frequently
+Format: {"tag_name":"content_string"}
+Rendered: f"<{tag_name}>\n{content}\n</{tag_name}>"
+
+
+• Ordering: Because it's a dictionary, the order of insertion matters. You      
+   should put the most stable info first and the most volatile (like date/cwd)   
+   last.
+
+• Suggested Keys:                                                               
+    • project_instructions: Specific rules for the current project.              
+    • skills_index: A list of capabilities.                                      
+    • memory: Retrieved context from the memory store.                           
+    • environment: System facts (generated by                                    
+      PromptBuilder.environment(project_root)).

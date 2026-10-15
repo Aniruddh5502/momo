@@ -1,0 +1,2 @@
+[console_scripts]
+momobot = momobot.cli.app:main

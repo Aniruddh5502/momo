@@ -1,0 +1,8 @@
+recursive-include momo/core *.py
+recursive-include momo/cli *.py
+recursive-include momo/store *.py
+recursive-include momo/tools *.py
+recursive-include momo/prompts *.py
+recursive-include momo/momo_data *
+include README.md
+include pyproject.toml
