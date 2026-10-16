@@ -1,6 +1,6 @@
 # momo
 
-momo is a high-fidelity local agentic AI system powered by LangGraph and Ollama. It is designed as a "pure harness," where agent behavior is defined as data (Specs) and the execution engine is a stateless loop.
+momo is a continious updating project of mine. I use it fo
 
 ## 🏗️ Architecture
 
