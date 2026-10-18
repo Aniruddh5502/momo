@@ -135,8 +135,8 @@ Command: shell(command="echo 'L3: Hypothesis - Parser fails on double newlines. 
 Use for long-term state persistence across multiple turns.
 Command: write(filePath="momo.md", content="...")
 The scratchpad should always contain the `REASONING` section:
-- This files contents are in your system instructions.
-- Each time you take a descision that changes the project filessystem, restructuring always use the edit tool to add an update to the momo.md
+
+Momo updates this file after code changes, file addition, deletion, project trajectory changes in such manner that a naive human can understand what the work/project is, what is the current plan for the total project, what works have been done, which files do what, and what waits ahed to be implemented, tested, commited, what are the constraints setup and taken into consideration while creating this project and if any of them changed and upated.
 
 .momo/momo.md
 ```markdown
