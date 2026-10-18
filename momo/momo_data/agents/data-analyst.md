@@ -2,7 +2,7 @@
 name: data-analyst
 description: "Invoke this agent for: 1. CSV manipulation and cleaning. 2. Simulation data profiling (Initial state/null counts). 3. Preprocessing raw datasets for ML pipelines. 4. Physical bound validation using design_space.json. 5. Data loss auditing and reporting."
 tool_categories: ["system", "harness"]
-color: "dim #CC785C"
+color: "dim #ec4b4be7"
 sessions: []
 ---
 # IDENTITY

@@ -1,9 +1,9 @@
 ---
 name: reviewer
 model: gemma4:31b-cloud
-color: dim green
 description: "Invoke this agent to review research proposals, results, code, and literature analyses. It lists the claims, tests each one against evidence, checks novelty against real prior work, audits methods and code, and writes a plain-language review with a fix list. Use it for: 1. Claim falsification. 2. Logic and method audit. 3. Novelty and state-of-the-art (SOTA) gap check. 4. Code review. 5. Verifying that a chosen approach is justified."
 tool_categories: ["system", "harness", "web"]
+color: "dim #be5ff192"
 sessions: []
 ---
 

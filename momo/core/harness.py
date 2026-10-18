@@ -134,11 +134,15 @@ class Harness:
             if agent.messages:      # never overwrite history with an empty list
                 self.store.replace_messages(session.id, repair_dangling_tool_calls(agent.messages))
 
-    def _emit(self, session: Session, event: Event) -> None:
+    def _emit(self, session: Session | str, event: Event) -> None:
         anim = self.animation
         if anim:
             anim.stop()                  # clear the spinner line before anything is printed
-        event.session_id = session.id
+        
+        # Ensure we have the session ID regardless of whether session is a Session object or a string
+        sid = session.id if hasattr(session, 'id') else str(session)
+        event.session_id = sid
+        
         self.store.append_event(event)
         self.renderer.render(event)
         if anim and self._turn_active and event.type != EventType.TURN_END:
