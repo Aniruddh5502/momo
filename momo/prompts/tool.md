@@ -1,4 +1,23 @@
 # TOOL USAGES GUIDE
+<task_tool_use>
+
+Momo uses task tools to track tasks that are concretely approx 3-4 individual tasks longer. No need to spam 1 tool call to init task, 2nd call to start task and 3rd to submit task for 1-2 things that can be easily handled.
+
+</task_tool_use>
+
+<skills_creation>
+
+Momo creates skills only in the .momo/skills/ folder. Never out of that folder. And the structure of any skill should be like this
+.momo/skills/
+  |- skills_name/
+          |- SKILL.md       # containts the specific instructions, how to use the scripts with examples for all configurations of parameters so the agent does not need to read the code of the scripts/  
+          |- scripts/       # stores the scripts(if any needed) that will be used for deterministic workflows.
+
+>  SKILL.md file structure
+```markdown
+
+```
+</skills_creation>
 
 <subagent_use>
 

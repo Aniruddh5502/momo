@@ -116,9 +116,38 @@ class SubagentParser:
             temperature=number("temperature", s.temperature, float),
             extra={"color": color} if color else {},
         )
+        
+        # getting the skills into the system prompt
+        from momo.core.settings import Settings
+        settings = Settings()
+        root = settings.project_root / ".momo"
+        skills_dir = root / "skills"            # skills directory
+        skills = sorted(skills_dir.rglob("SKILL.md"))
+        skills_contents = []
+        for skill in skills:
+            with open(skill, 'r', encoding='utf-8') as f:
+                post = frontmatter.load(f)
+            skill_content = {
+                "name":post.get("name"),
+                "description":post.get("description"),
+                "metadata":post.get("metadata"),
+                "path":skill,
+                "content":post.content,
+            }
+            skills_contents.append(skill_content)
+        
+        # now we need to only send the name descirption and path for the skill
+        # to the system prompt
+        skills_prompt_section = ""
+        for skill in skills_contents:
+            name = skill["name"]
+            descrption = skill["description"]
+            skills_prompt_section += f"\nName: {name}\nDescription: {descrption}\n"
+        skills_prompt_section += data["content"] 
+        
         return SubagentConfig(
             spec=spec,
-            system_prompt=data["content"].strip(),
+            system_prompt=skills_prompt_section,
             tool_categories=_as_list(data["tool_categories"]),
             description=str(data["description"] or ""),
             color=color,
@@ -159,7 +188,7 @@ class SubagentManager:
 
     @property
     def agents_dir(self) -> Path:
-        return self.project_root / ".momo" / "agents"
+        return self.project_root / ".momo"
 
     def agent_path(self, name: str) -> Path | None:
         """<name>.md directly, otherwise any agent file whose frontmatter `name` matches."""

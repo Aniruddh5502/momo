@@ -62,10 +62,13 @@ class ThinkingAnimation:
             "Doodling",
             "Thinking",
             "Unfolding",
-            "Finding",
+            "Discombulating",
             "Reconstructing",
             "Doomscrolling",
-            "Killing braincell",
+            "Killing it",
+            "Pondering",
+            "Brewing",
+            "Digging"
         ]
         self.action = message or random.choice(self.actions)
 
