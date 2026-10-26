@@ -17,7 +17,7 @@ import sys
 import threading
 from typing import Optional, TextIO
 
-UNICODE_FRAMES = ["·", "✢", "✶", "✻", "✽", "✻", "✶", "✢"]
+UNICODE_FRAMES = ["✢", "✳", "✵","✼", "✻", "✶", "✼", "✽"]
 ASCII_FRAMES = ["|", "/", "-", "\\"]
 
 DIM = "\033[2m"

@@ -92,13 +92,20 @@ class Harness:
 
     def compact_session(self, session: Session) -> None:
         """Force compaction now (/compact), regardless of the threshold."""
+        
+        from momo.cli.animation import ThinkingAnimation
+        anim = ThinkingAnimation()
+        anim.start()
+        
         agent = self._build_agent(session.spec, session.project_root)
         messages = self.store.load_messages(session.id)
         result = agent.compactor.compact(messages)
         if not result.compacted:
             self.renderer.info("Nothing to compact yet.")
+            anim.stop()
             return
         self.store.replace_messages(session.id, result.messages)
+        anim.stop()
         self._emit(session, Event(EventType.COMPACTION, {
             "summary": result.summary,
             "tokens_before": result.tokens_before,
