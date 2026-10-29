@@ -50,9 +50,9 @@ def create_system_tools(ctx: ToolContext):
             content: The text content to write.
         """
         # check if its writing the system prompt files
-        if ".momo/prompts/soul.md" or ".momo/prompts/tool.md" or ".momo/prompts/user.md" in filePath:
+        if filePath.endswith(".momo/prompts/soul.md" or ".momo/prompts/tool.md" or ".momo/prompts/user.md") :
             return """
-You are not allowed to fully write/overwrite thsi file. 
+You are not allowed to fully write/overwrite this file. 
 You should only use the edit tool to edit small sections at a time."""
         try:
             full_path = (ctx.project_root / filePath).resolve()
