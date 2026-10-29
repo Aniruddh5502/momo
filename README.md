@@ -1,100 +1,55 @@
-# momo
+# Momo
 
-momo is a continious updating project of mine. I use it fo
+Proactive, high-agency AI agent framework combining PhD-level research rigor with senior engineering efficiency.
 
-## 🏗️ Architecture
+## Architecture
 
-### 1. The Agent DNA: AgentSpec
-Every agent in the system—whether the main agent or a specialized subagent—is an instance of the same `Agent` class. What differentiates them is the `AgentSpec`.
+### Agent DNA (AgentSpec)
+Agents are instances of a unified Agent class configured via AgentSpec.
+- Agents: .momo/agents/<name>/agent.md (YAML config + system prompt).
+- Skills: .momo/skills/<name>/SKILL.md (Logic + description).
 
-**File Structure for Customization:**
-- **Agents**: `.momo/agents/<agent_name>/agent.md` (Contains YAML frontmatter for the `AgentSpec` and the system prompt body).
-- **Skills**: `.momo/skills/<skill_name>/SKILL.md` (Contains the skill description and logic).
+### Prompt Pipeline
+PromptBuilder optimizes for Ollama's prompt-prefix caching:
+1. Static: Reads prompt_sections from .md files (e.g., identity, soul, tools).
+2. Dynamic: Appends context-specific tags (Project instructions, Memory, Environment).
 
-**AgentSpec** defines:
-- **Model**: The Ollama model tag (e.g., `gemma4:31b`).
-- **Context Window**: `num_ctx` and the `max_context_tokens` threshold for compaction.
-- **Tooling**: A list of tool names resolved from the `ToolRegistry`.
-- **Prompt Blueprint**: An ordered list of `prompt_sections` that dictate how the system prompt is assembled.
+### Subagent System
+Subagents operate as Child Sessions managed by SubagentManager.
+- Isolated Config: Independent AgentSpec for specific models and tool subsets.
+- Nested Execution: Specialized identities (e.g., Researcher, Coder) with unique UI rendering.
 
-### 2. Prompt Assembly Pipeline
-The `PromptBuilder` assembles the system prompt in a specific order to optimize for Ollama's prompt-prefix caching (keeping stable content at the top).
+### Execution Loop
+Deterministic state machine powered by LangGraph:
+`START` -> `Compact` -> `Reasoning` -> `Tool Node` -> `Repeat`
+- Compaction: Summarizes history when token thresholds are met.
+- Resilience: Self-corrects malformed tool calls via feedback loops.
 
-**Assembly Order:**
-1. **Static Sections**: The builder reads `.md` files from the prompts directory based on the `AgentSpec.prompt_sections` list. 
-   - Example: `["identity", "soul", "@tools"]` $\rightarrow$ reads `identity.md`, `soul.md`, and then renders the tool descriptions.
-2. **Dynamic Sections**: Information that changes per-turn or per-project is wrapped in `<tag>` markers and appended at the end.
-   - **Project Instructions**: Content from `momo.md`.
-   - **Skills/Subagent Indexes**: Available capabilities and specialized agents.
-   - **Memory**: Context retrieved from the semantic store.
-   - **Environment**: Current date, CWD, and OS (always last).
-
-### 3. The Subagent System
-Subagents are not separate entities but are **Child Sessions**.
-
-- **Lifecycle**: The main agent calls a `task` tool $\rightarrow$ the `SubagentManager` spawns a new session with a specific `AgentSpec` $\rightarrow$ the subagent runs until completion $\rightarrow$ the result is returned to the main agent.
-- **Configuration**:
-  - **Models & Tools**: Each subagent has its own `AgentSpec`, allowing it to use a different model (e.g., a smaller model for simple tasks) and a restricted subset of tools.
-  - **System Prompts**: Subagents use their own prompt sections, allowing them to have specialized identities (e.g., "Researcher" vs "Coder").
-  - **UI/UX**: The `Renderer` assigns unique colors to subagents. When a subagent is running, its events are streamed live to the terminal, creating a nested execution visual.
-
-### 4. The Execution Loop (LangGraph)
-The agent operates on a deterministic state machine:
-`START` $\rightarrow$ `Compact` (Check tokens) $\rightarrow$ `Reasoning` (LLM call) $\rightarrow$ `Tool Node` (Execute) $\rightarrow$ `Compact` $\rightarrow$ `Reasoning`...
-
-- **Compaction**: When the token limit is hit, the system summarizes old history while preserving the most recent messages and tool-call pairs.
-- **Fault Tolerance**: Malformed tool calls are caught and fed back to the model as a "hint" for a retry, rather than crashing the session.
-
----
-
-## 🚀 Installation & Usage
+## Getting Started
 
 ### Prerequisites
-- **Ollama**: Installed and running locally.
-- **Python**: 3.10+
+- Ollama: Local instance running.
+- Python: 3.10+
 
-### Setup
-1. **Clone the repository**
-2. **Install the package**:
-   ```bash
-   pip install -e .
-   ```
+### Installation
+```bash
+pip install -e .
+```
 
-### Running momo
-Start the agent using the CLI command:
+### Usage
 ```bash
 momo
 ```
+- --resume: Load latest session.
+- --model <tag>: Override default model.
+- --project <dir>: Specify project root.
 
-**Common CLI Options:**
-- `--resume`: Resume the latest session.
-- `--model <tag>`: Override the default model.
-- `--project <dir>`: Specify a custom project root.
+### Project Setup
+Run /init in your directory to create the .momo configuration and momo.md state file.
 
-### Project Initialization
-Run `/init` inside a project directory to initialize the `.momo` configuration folder, which contains your `momo.md` instructions and local project state.
-
-## 🛠️ Command Reference
-- `/init`: Initialize project metadata.
-- `/compact`: Manually trigger context compaction.
-- `/clear`: Reset the current session.
-- `/resume [ID]`: Switch to a previous session.
-- `/btw`: Ask a side question without affecting main session context.
-
-
-# Agent Configuration
-
----
-name : model_name
-when_to_use: In which situations we should use this subagent to do which job
-tool_categories:[web, system, subagent]
-color: dim cyan
-type: subagent
----
-> System Prompt Instructions
-
-.momo/agents/
-├── researcher.md
-├── coder.md
-└── nested/
-    └── reviewer.md
+## Commands
+- /init: Initialize project metadata.
+- /compact: Force context compaction.
+- /clear: Reset session.
+- /resume [ID]: Restore specific session.
+- /btw: Side-query (non-contextual).

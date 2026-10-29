@@ -11,7 +11,7 @@ Suggested dynamic keys, in order:
 from __future__ import annotations
 
 import datetime as _dt
-import platform
+import platform, shutil, subprocess
 from pathlib import Path
 from langchain_core.tools import BaseTool
 from momo.core.spec import AgentSpec
@@ -59,6 +59,7 @@ class PromptBuilder:
             raise FileNotFoundError(f"Prompt section '{name}' not found at {path}")
         return path.read_text(encoding="utf-8").strip()
 
+
     @staticmethod
     def _render_tools(tools: list[BaseTool]) -> str:
         lines = ["# Tools"]
@@ -66,11 +67,50 @@ class PromptBuilder:
             lines.append(f"- {t.name}: {t.description.strip().splitlines()[0] if t.description else ''}")
         return "\n".join(lines)
 
+
+
+    # @staticmethod is a decorator that tells Python: "this method doesn't 
+    # take self (or cls) — it's just a plain function that happens to live 
+    # inside the class."
+    # gets the environment data from the CWD
+    @staticmethod
+    def git_status(root: Path) -> str:
+        git = shutil.which("git")
+        if not git:
+            return "git: not installed"
+
+        def run(*args: str) -> str:
+            return subprocess.run(
+                [git, *args],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=2,
+                errors="replace",
+            ).stdout.strip()
+
+        try:
+            top = run("rev-parse", "--show-toplevel")
+            if not top:
+                return "git: not a repository"
+            branch = run("rev-parse", "--abbrev-ref", "HEAD") or "(detached)"
+            changes = run("status", "--porcelain")
+            dirty = "dirty" if changes else "clean"
+            files = len(changes.splitlines())
+            suffix = f", {files} changed file(s)" if files else ""
+            return f"git: {top} @ {branch} ({dirty}{suffix})"
+        except (OSError, subprocess.SubprocessError) as e:
+            return f"git: unavailable ({e.__class__.__name__})"
+
     @staticmethod
     def environment(project_root: Path) -> str:
         """Volatile facts: keep this last in the dynamic dict."""
+        root = Path(project_root).resolve()
         return (
-            f"date: {_dt.date.today().isoformat()}\n"
-            f"cwd: {project_root}\n"
-            f"os: {platform.system()}"
+            f"date: {_dt.datetime.now().astimezone().isoformat(timespec='seconds')}\n"
+            f"cwd: {root}\n"
+            f"os: {platform.platform()}\n"
+            f"machine: {platform.machine()}\n"
+            f"python: {platform.python_version()}\n"
+            f"{PromptBuilder.git_status(root)}"
         )

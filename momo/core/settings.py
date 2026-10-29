@@ -21,4 +21,4 @@ class Settings:
     # Phase 1: one DB for all projects (sessions are keyed by project_root).
     # Phase 2 moves this to <project>/.momo/sessions.db.
     db_path: Path = field(default_factory=lambda: Path.home() / ".momo" / "sessions.db")
-    prompts_dir: Path = field(default_factory=lambda: _PACKAGE_ROOT / "prompts")
+    prompts_dir: Path = field(default_factory=lambda: Path.cwd() / ".momo" / "prompts")

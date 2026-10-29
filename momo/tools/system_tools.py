@@ -1,3 +1,4 @@
+import os, platform
 from pathlib import Path
 from typing import Any
 from langchain_core.tools import tool
@@ -5,10 +6,15 @@ import subprocess
 from momo.tools.registry import ToolContext
 
 def create_system_tools(ctx: ToolContext):
+    def _shell_blurb() -> str:
+        if platform.system() == "Windows":
+            comspec = os.environ.get("COMSPEC", r"C:\Windows\System32\cmd.exe")
+            return f"cmd.exe (shell=True → {comspec})"
+        return "/bin/sh (shell=True, ignores $SHELL)"
+    
     @tool
     def bash(command: str) -> str:
         """Executes a shell command in the project root.
-        
         Args:
             command: The bash/cmd command to execute.
         """
@@ -33,6 +39,8 @@ def create_system_tools(ctx: ToolContext):
         except Exception as e:
             return f"Error executing command: {str(e)}"
 
+    bash.description = bash.description + f"\n\nShell: {_shell_blurb()}"
+    
     @tool
     def write(filePath: str, content: str) -> str:
         """Writes content to a file in the project root. Overwrites if exists.
@@ -41,6 +49,11 @@ def create_system_tools(ctx: ToolContext):
             filePath: Path to the file relative to project root.
             content: The text content to write.
         """
+        # check if its writing the system prompt files
+        if ".momo/prompts/soul.md" or ".momo/prompts/tool.md" or ".momo/prompts/user.md" in filePath:
+            return """
+You are not allowed to fully write/overwrite thsi file. 
+You should only use the edit tool to edit small sections at a time."""
         try:
             full_path = (ctx.project_root / filePath).resolve()
             
