@@ -14,8 +14,8 @@ class EventType(str, Enum):
     USER_MESSAGE = "user_message"
     ASSISTANT_TEXT = "assistant_text"      # emitted once per completed model message
     ASSISTANT_THINK = "assistant_think"    # optional reasoning content
-    TOOL_CALL = "tool_call"                # call_id, name, args
-    TOOL_RESULT = "tool_result"            # call_id, name, display content, is_error
+    SUBAGENT_START = "subagent_start"      # call_id, name, args: printed when a subagent call begins
+    TOOL_CALL = "tool_call"                # one per call: call_id, name, args, content, truncated, full_length, is_error, hidden
     COMPACTION = "compaction"              # summary, tokens_before, tokens_after, dropped
     USAGE = "usage"                        # prompt_tokens, completion_tokens, usage_percent
     ERROR = "error"                        # message, recoverable
