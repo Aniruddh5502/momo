@@ -87,35 +87,100 @@ class Renderer:
         style = f"dim italic {self._color(e)}".strip()
         self.console.print(Text(e.payload.get("text", ""), style=style))
 
+    # ------------------------------------------------------------------ tool calls
+    # Two kinds of event reach these handlers:
+    #   SUBAGENT_START: sent when the model starts a call_subagent call (before it runs).
+    #   TOOL_CALL:      sent once per call, after its result exists. It carries the
+    #                   name, args, and result together.
+
+    def _on_subagent_start(self, e: Event, live: bool) -> None:
+        # A subagent runs for a long time, so print its header now, not when it finishes.
+        self._print_tool_header(e)
+
     def _on_tool_call(self, e: Event, live: bool) -> None:
+        # The live and replay paths both come here; `live` is not needed for tool calls.
+        self._render_tool_call(e)
+
+    def _render_tool_call(self, e: Event) -> None:
+        """One block per tool call: a header line (name + args), then its output."""
+        # The header was already printed by _on_subagent_start for subagent calls.
+        # For every other call, header_shown is False, so print the header here.
+        if not e.payload.get("header_shown"):
+            self._print_tool_header(e)
+        # hidden is True for a successful subagent call: its output is already printed
+        # as the subagent's own events, so skip it here. Errors are never hidden.
+        if not e.payload.get("hidden"):
+            self._print_tool_output(e)
+
+    def _print_tool_header(self, e: Event) -> None:
+        # The tool name, for example "read_file".
+        name = e.payload.get("name", "?")
+        # The color for this event: the subagent's color, or "" for the main agent.
         color = self._color(e)
-        args = ", ".join(f"{k}={v!r}" for k, v in (e.payload.get("args") or {}).items())
-        if len(args) > MAX_ARG_CHARS:
-            args = args[: MAX_ARG_CHARS - 1] + "…"
+        # The args as one short string, formatted for this tool.
+        args_str = self._format_args(name, e.payload.get("args") or {})
+        # Text.assemble needs a list of pieces; each piece is (text, style).
         parts: list = []
+        # For a subagent, put "[name] " in front so you can see who made the call.
         tag = self._tag(e)
         if tag:
             parts.append(tag)
-        parts += [("✽ ", color or "green"), (e.payload.get("name", "?"), f"bold {color}".strip()), (f"     {args}", "dim")]
+        # The "✽ " marker, the bold tool name, then the args in dim text.
+        parts += [("✽ ", color or "white"), (name, f"bold {color}".strip()), (f"     {args_str}", "dim")]
+        # Print the whole line on one console line.
         self.console.print(Text.assemble(*parts))
 
-    def _on_tool_result(self, e: Event, live: bool) -> None:
-        if e.payload.get("hidden"):
-            return                       # subagent output is already shown as its own events
+    def _format_args(self, name: str, raw_args: dict) -> str:
+        """Header text for a tool call. Add a branch here for a tool that needs its own format."""
+        # Special case: task_init gets a short summary instead of the full task list.
+        if name == "task_init" and isinstance(raw_args.get("tasks"), list):
+            tasks = raw_args["tasks"]
+            # Collect the name of each task (skip anything that is not a dict).
+            names = []
+            for t in tasks:
+                if isinstance(t, dict):
+                    names.append(t.get("name", "?"))
+            # For example: "4 task(s): a, b, c"
+            args_str = str(len(tasks)) + " task(s): " + ", ".join(names[:3])
+            # More than 3 names: add "…" to show the list was cut short.
+            if len(names) > 3:
+                args_str += "…"
+        else:
+            # Default: key=value pairs, for example: path='a.py', limit=10
+            parts = []
+            for k, v in raw_args.items():
+                # repr(v) puts quotes around strings, so the value is shown exactly.
+                parts.append(k + " " + str(v))
+            args_str = " ".join(parts)
+        # Keep the header to one line: cut it at MAX_ARG_CHARS and add "…".
+        if len(args_str) > MAX_ARG_CHARS:
+            args_str = args_str[:MAX_ARG_CHARS - 1] + "…"
+        return args_str
+
+    def _print_tool_output(self, e: Event) -> None:
+        # The same color as the header, dimmed, so output looks attached to the call.
         color = self._color(e)
+        # An error is always red. Normal output uses the dim color.
         if e.payload.get("is_error"):
             style = "red"
         else:
             style = f"dim {color}".strip() if color else "dim"
+        # Split the output into lines. An empty output becomes one line saying so.
         lines = (e.payload.get("content") or "").splitlines() or ["(no output)"]
+        # Show only the first MAX_RESULT_LINES lines.
         shown = lines[:MAX_RESULT_LINES]
         for i, line in enumerate(shown):
-            prefix = "  └─ " if i == 0 else "    "
+            # The first line is indented by 2 spaces, the rest by 4.
+            prefix = "  " if i == 0 else "    "
+            # no_wrap + ellipsis: a long line is cut at the terminal edge with "…".
             self.console.print(Text(prefix + line, style=style), overflow="ellipsis", no_wrap=True)
+        # How many lines were left out of the display.
         hidden = len(lines) - len(shown)
+        # Say so if lines were left out, or if the stored content was cut to DISPLAY_MAX_CHARS.
         if hidden > 0 or e.payload.get("truncated"):
             extra = f"… +{hidden} lines" if hidden > 0 else "… output truncated"
             self.console.print(Text("    " + extra, style=style))
+        # A blank line after each call's output, to separate it from the next one.
         self.console.print("")
 
     def _on_compaction(self, e: Event, live: bool) -> None:
