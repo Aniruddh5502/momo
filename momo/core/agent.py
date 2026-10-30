@@ -306,12 +306,15 @@ class Agent:
                 text = message_text(ai).strip()
                 if text:
                     yield Event(EventType.ASSISTANT_TEXT, {"text": text})
+                # TOOL_CALL events are emitted by the tool_node, once each call has its result.
+                # A subagent call runs for a long time, so its header is shown when it starts.
                 for call in ai.tool_calls:
-                    yield Event(EventType.TOOL_CALL, {
-                        "call_id": call.get("id") or "",
-                        "name": call["name"],
-                        "args": call.get("args", {}),
-                    })
+                    if call["name"] == SUBAGENT_TOOL_NAME:
+                        yield Event(EventType.SUBAGENT_START, {
+                            "call_id": call.get("id") or "",
+                            "name": call["name"],
+                            "args": call.get("args", {}),
+                        })
                 meta = getattr(ai, "response_metadata", None) or {}
                 tracker = self.compactor.tracker
                 yield Event(EventType.USAGE, {
@@ -327,19 +330,35 @@ class Agent:
             return
 
         if node == "tool_node":
+            # One TOOL_CALL event per call: name, args and result together.
+            # The args are on the AIMessage that made the calls, which comes before the results.
+            ai_calls = []
+            for m in update["messages"][:previous_len]:
+                if isinstance(m, AIMessage):
+                    ai_calls = m.tool_calls          # keep the last one
+
+            args_by_id = {}
+            for c in ai_calls:
+                args_by_id[c.get("id") or ""] = c
+
             for m in update["messages"][previous_len:]:
                 if not isinstance(m, ToolMessage):
                     continue
+                call = args_by_id.get(m.tool_call_id, {})
+                name = m.name or call.get("name") or ""
                 text = message_text(m)
                 is_error = m.status == "error"
-                yield Event(EventType.TOOL_RESULT, {
+                is_subagent = name == SUBAGENT_TOOL_NAME
+                yield Event(EventType.TOOL_CALL, {
                     "call_id": m.tool_call_id,
-                    "name": m.name or "",
+                    "name": name,
+                    "args": call.get("args", {}),
                     "content": text[:DISPLAY_MAX_CHARS],
                     "truncated": len(text) > DISPLAY_MAX_CHARS,
                     "full_length": len(text),
                     "is_error": is_error,
-                    # The subagent's answer is already rendered live as its own events.
-                    # Hide the parent's copy of it; the model still receives the full text.
-                    "hidden": m.name == SUBAGENT_TOOL_NAME and not is_error,
+                    # A subagent's header was printed when it started, and its output is
+                    # already shown as its own events. Only its error text is printed here.
+                    "header_shown": is_subagent,
+                    "hidden": is_subagent and not is_error,
                 })
