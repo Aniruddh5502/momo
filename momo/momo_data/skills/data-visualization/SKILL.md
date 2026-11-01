@@ -47,24 +47,24 @@ import pandas as pd
 import numpy as np
 
 # Professional style setup
-plt.style.use('seaborn-v0_8-whitegrid')
+plt.style.use('dark_background')
 plt.rcParams.update({
     'figure.figsize': (10, 6),
-    'figure.dpi': 150,
-    'font.size': 11,
+    'figure.dpi': 300,
+    'font.size': 14,
     'axes.titlesize': 14,
     'axes.titleweight': 'bold',
-    'axes.labelsize': 11,
-    'xtick.labelsize': 10,
-    'ytick.labelsize': 10,
-    'legend.fontsize': 10,
+    'axes.labelsize': 14,
+    'xtick.labelsize': 14,
+    'ytick.labelsize': 14,
+    'legend.fontsize': 14,
     'figure.titlesize': 16,
 })
 
 # Colorblind-friendly palettes
 PALETTE_CATEGORICAL = ['#4C72B0', '#DD8452', '#55A868', '#C44E52', '#8172B3', '#937860']
-PALETTE_SEQUENTIAL = 'YlOrRd'
-PALETTE_DIVERGING = 'RdBu_r'
+PALETTE_SEQUENTIAL = 'viridis'
+PALETTE_DIVERGING = 'viridis'
 ```
 
 ### Line Chart (Time Series)
@@ -86,7 +86,7 @@ ax.spines['right'].set_visible(False)
 fig.autofmt_xdate()
 
 plt.tight_layout()
-plt.savefig('trend_chart.png', dpi=150, bbox_inches='tight')
+plt.savefig('trend_chart.png', dpi=300, bbox_inches='tight',  pad_inches=0.5)
 ```
 
 ### Bar Chart (Comparison)
@@ -111,7 +111,7 @@ ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 
 plt.tight_layout()
-plt.savefig('bar_chart.png', dpi=150, bbox_inches='tight')
+plt.savefig('bar_chart.png', dpi=300, bbox_inches='tight', pad_inches=0.5)
 ```
 
 ### Histogram (Distribution)
