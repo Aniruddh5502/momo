@@ -22,7 +22,7 @@ from momo.tools.subagent.manager import SubagentManager
 
 console = Console()
 
-theme_char      =   "✽"
+theme_char      =   "x_O"
 book_cloth      =   "#CC785C"
 error           =   "#BF4D43"
 focus           =   "#61AAF2"
