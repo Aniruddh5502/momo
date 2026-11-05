@@ -1,12 +1,14 @@
 """ThinkingAnimation: a spinner with a live token counter, shown while the model works.
 
-Your original spinner, extended:
   * a thread-safe token counter  (`add_tokens`, `reset`, `tokens`)
   * idempotent start/stop, and it only clears a line it actually drew
   * a short delay before the first frame, so back-to-back start/stop (the harness
     stops it around every emitted event) never flickers
-  * disabled automatically when stdout is not a terminal (pipes, tests, logs)
+  * disabled automatically when the output is not a terminal (pipes, tests, logs)
   * falls back to plain ASCII frames when the terminal cannot show the unicode ones
+  * a wave: one character of the action is highlighted per frame, moving left to
+    right and wrapping around. Styling is done with Rich, so the highlight uses a
+    colour rather than the SGR "dim" attribute, which many terminals do not render.
 
 Typical use (see Harness._emit): stop() before printing anything, start() after.
 """
@@ -17,10 +19,12 @@ import sys
 import threading
 from typing import Optional, TextIO
 
-UNICODE_FRAMES = ["✢", "✳", "✵","✼", "✻", "✶", "✼", "✽"]
+from rich.console import Console
+from rich.text import Text
+
+UNICODE_FRAMES = ["✢", "✳", "✵", "✼", "✻", "✶", "✼", "✽"]
 ASCII_FRAMES = ["|", "/", "-", "\\"]
 
-DIM = "\033[2m"
 CLEAR_LINE = "\r\033[2K"
 
 
@@ -35,8 +39,9 @@ class ThinkingAnimation:
     def __init__(
         self,
         message: Optional[str] = None,           # fixed label; None = pick a random action per start()
-        color_code: str = "\033[38;2;227;114;94m",
-        speed: float = 5,                        # frames per second
+        base_style: str = "#D97757",     # style for the spinner, action text and ellipsis
+        wave_style: str = "#DAA491",  # style for the character the wave is currently on
+        speed: float = 10,                        # frames per second
         *,
         stream: Optional[TextIO] = None,         # defaults to sys.stdout at write time
         enabled: Optional[bool] = None,          # None = only when the stream is a TTY
@@ -44,13 +49,14 @@ class ThinkingAnimation:
         first_frame_delay: float = 0.15,
     ):
         self.message = message
-        self.color_code = color_code
-        self.reset_code = "\033[0m"
+        self.base_style = base_style
+        self.wave_style = wave_style
         self.speed = 1 / speed
         self.first_frame_delay = first_frame_delay
         self._stream = stream
 
         out = self._out()
+        self.console = Console(file=out)
         self.enabled = out.isatty() if enabled is None else enabled
         if ascii_only is None:
             encoding = (getattr(out, "encoding", None) or "").lower().replace("-", "")
@@ -68,7 +74,7 @@ class ThinkingAnimation:
             "Killing it",
             "Pondering",
             "Brewing",
-            "Digging"
+            "Digging",
         ]
         self.action = message or random.choice(self.actions)
 
@@ -123,12 +129,23 @@ class ThinkingAnimation:
     def _out(self) -> TextIO:
         return self._stream if self._stream is not None else sys.stdout
 
-    def _label(self, frame: str) -> str:
-        text = f"{self.color_code}{frame} {self.action}…{self.reset_code}"
+    def _label(self, frame: str, wave_idx: int) -> Text:
+        text = Text()
+        text.append(f"{frame} ", style=self.base_style)
+
+        action = self.action or ""
+        if action:
+            dim_pos = wave_idx % len(action)
+            text.append(action[:dim_pos], style=self.base_style)
+            text.append(action[dim_pos], style=self.wave_style)
+            text.append(action[dim_pos + 1:], style=self.base_style)
+
+        text.append("…", style=self.base_style)
+
         n = self._tokens
         if n > 0:
             arrow = "" if self.ascii_only else "↓ "
-            text += f" {DIM}({arrow}{format_tokens(n)} tokens){self.reset_code}"
+            text.append(f" ({arrow}{format_tokens(n)} tokens)", style="dim")
         return text
 
     def _animate(self) -> None:
@@ -139,7 +156,8 @@ class ThinkingAnimation:
             frame = self.frames[idx % len(self.frames)]
             with self.lock:
                 out = self._out()
-                out.write(f"{CLEAR_LINE}{self._label(frame)}")
+                out.write(CLEAR_LINE)
+                self.console.print(self._label(frame, idx), end="", highlight=False)
                 out.flush()
                 self._drawn = True
             self._stop_event.wait(self.speed)

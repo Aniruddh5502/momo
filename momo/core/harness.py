@@ -94,7 +94,7 @@ class Harness:
         """Force compaction now (/compact), regardless of the threshold."""
         
         from momo.cli.animation import ThinkingAnimation
-        anim = ThinkingAnimation()
+        anim = ThinkingAnimation(message="Compacting")
         anim.start()
         
         agent = self._build_agent(session.spec, session.project_root)
