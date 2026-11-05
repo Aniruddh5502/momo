@@ -38,12 +38,14 @@ class PromptBuilder:
                 parts.append(self._render_tools(tools))
             else:
                 parts.append(self._read_section(name))
+        
+        # adding the environment functions return
         for key, content in (dynamic or {}).items():
             content = (content or "").strip()
             if content:
-                parts.append(f"<{key}>\n{content}\n</{key}>")
+                parts.append(f"<{key}>{content}</{key}>")
         
-        system_prompt_1 = "\n\n".join(p for p in parts if p)
+        system_prompt_1 = "\n".join(p for p in parts if p)
         
         # .momo/ lives in the project root the harness is working in (--project), so the
         # caller passes it; fall back to the current directory only if nothing was passed.

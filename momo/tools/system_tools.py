@@ -13,11 +13,22 @@ def create_system_tools(ctx: ToolContext):
         return "/bin/sh (shell=True, ignores $SHELL)"
     
     @tool
-    def bash(command: str) -> str:
+    def bash(command: str, timeout:int=30) -> str:
         """Executes a shell command in the project root.
         Args:
             command: The bash/cmd command to execute.
+            timeout: in seconds.
         """
+        _DANGEROUS = {"rm", "rmdir", "del", "rd", "erase", "remove-item", "format"}
+        if "rmdir" in command or "rm" in command or "del" in command:
+            
+            from rich.console import Console
+            console = Console()
+            console.print(f"\n[#c6613f]✽[/] [dim]Momo wants to run this command:[/] [#c6613f]{command}[/]\n1.Approve\n2.Decline")
+            permission = input("Enter choice: ")
+            if int(permission)!=1:
+                
+                return "<warning>User has Declined to run this command</warning>"
         try:
             # Run command in the project root directory
             result = subprocess.run(
@@ -26,7 +37,7 @@ def create_system_tools(ctx: ToolContext):
                 cwd=ctx.project_root,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=timeout
             )
             output = result.stdout if result.stdout else ""
             error = result.stderr if result.stderr else ""

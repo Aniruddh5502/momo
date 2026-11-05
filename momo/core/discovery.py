@@ -80,7 +80,7 @@ def agent_and_skill(root:Path)->str:
         name = agent.get("name")
         description = agent.get("description")
         agents_prompt += f"\nName: {name}\nDescription: {description}\n"
-    agents_prompt_ = f"\n<agents>\n{agents_prompt}\n</agents>\n"
+    agents_prompt_ = f"\n<agents>{agents_prompt}</agents>\n"
     
     
     # Now same thing for skills
@@ -99,9 +99,9 @@ def agent_and_skill(root:Path)->str:
             if momo == "":
                 momo_ = f".momo/momo.md\n This files is empty. The project/repo work hasn't been initialized yet."   
             else:     
-                momo_ = f".momo/momo.md\nThis is the root of working directory\n{momo}"
+                momo_ = f"# .momo/momo.md\nWorking Directory Root: {root}\ncontent: \n{momo}"
     except Exception as e:
-        momo_ = f".momo/momo.md\n This files doesn't exist"
+        momo_ = f".momo/momo.md\n This files doesn't exist: {e}"
     agent_and_skills = f"{agents_prompt_}{skills_prompt_}{momo_}"
     return agent_and_skills
 
