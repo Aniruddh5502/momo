@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from langchain_core.tools import BaseTool
 
@@ -21,6 +21,9 @@ class ToolContext:
     session_id: str
     shell: "PersistentShell | None" = None
     subagent_manager: Any = None
+    # Asks the user to approve a command. Set by the harness (returns True = approved).
+    # None means no one can be asked, so risky commands are declined.
+    confirm: Callable[[str], bool] | None = None
 
 
 class ToolRegistry:

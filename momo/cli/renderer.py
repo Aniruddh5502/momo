@@ -8,6 +8,7 @@ its `color` frontmatter key. Unknown or missing colors fall back to a stable pal
 """
 from __future__ import annotations
 
+import sys
 from typing import Iterable
 
 from rich.console import Console
@@ -48,6 +49,18 @@ class Renderer:
     def info(self, text: str, style: str = "dim") -> None:
         """Non-persisted notices (command output, hints)."""
         self.console.print(Text(text, style=style))
+
+    def ask_approval(self, command: str) -> bool:
+        """Show a command and ask 1 (approve) or 2 (decline). Anything but 1 means no."""
+        if not sys.stdin.isatty():          # no person to answer (pipe, script, CI)
+            return False
+        self.console.print(Text.assemble(("✽ ", "#c6613f"), ("Momo wants to run this command:", "dim")))
+        self.console.print(Text("  " + command, style="#c6613f"))
+        self.console.print(Text("  1. Approve\n  2. Decline"))
+        try:
+            return input("Enter choice: ").strip() == "1"
+        except (EOFError, KeyboardInterrupt):
+            return False
 
     # ------------------------------------------------------------------ colors
     

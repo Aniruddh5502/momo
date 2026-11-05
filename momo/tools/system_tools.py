@@ -1,9 +1,15 @@
-import os, platform
+import os, platform, re
 from pathlib import Path
 from typing import Any
 from langchain_core.tools import tool
 import subprocess
 from momo.tools.registry import ToolContext
+
+# Whole words only: "model", "form", "platform" do not match. "python -c" is also gated.
+NEEDS_APPROVAL = re.compile(r"\b(rm|rmdir|del|unlink)\b|\bpython3?\s+-c\b")
+
+# System prompt files that `write` may not overwrite whole (use `edit` for small changes).
+PROTECTED_PROMPTS = ("soul.md", "tool.md", "user.md")
 
 def create_system_tools(ctx: ToolContext):
     def _shell_blurb() -> str:
@@ -20,14 +26,9 @@ def create_system_tools(ctx: ToolContext):
             timeout: in seconds.
         """
        
-        if "rmdir" in command or "rm" in command or "del" in command or "python -c" in command:
-            
-            from rich.console import Console
-            console = Console()
-            console.print(f"\n[#c6613f]✽[/] [dim]Momo wants to run this command:[/] [#c6613f]{command}[/]\n1.Approve\n2.Decline")
-            permission = input("Enter choice: ")
-            if int(permission)!=1:
-                
+        if NEEDS_APPROVAL.search(command):
+            # No way to ask (ctx.confirm not set) -> decline. Otherwise the user decides.
+            if ctx.confirm is None or not ctx.confirm(command):
                 return "<warning>User has Declined to run this command</warning>"
         try:
             # Run command in the project root directory
@@ -60,14 +61,17 @@ def create_system_tools(ctx: ToolContext):
             filePath: Path to the file relative to project root.
             content: The text content to write.
         """
-        # check if its writing the system prompt files
-        if filePath.endswith(".momo/prompts/soul.md" or ".momo/prompts/tool.md" or ".momo/prompts/user.md") :
-            return """
-You are not allowed to fully write/overwrite this file. 
-You should only use the edit tool to edit small sections at a time."""
         try:
             full_path = (ctx.project_root / filePath).resolve()
-            
+
+            # Block whole-file writes to the system prompt files. Compare resolved paths,
+            # so forward/back slashes, "..", and symlinks can't get around the check.
+            protected = {(ctx.project_root / ".momo" / "prompts" / name).resolve() for name in PROTECTED_PROMPTS}
+            if full_path in protected:
+                return """
+You are not allowed to fully write/overwrite this file.
+You should only use the edit tool to edit small sections at a time."""
+
             # Security check: prevent writing outside project root
             if not full_path.is_relative_to(ctx.project_root.resolve()):
                 return "Error: Access denied. Cannot write outside project root."

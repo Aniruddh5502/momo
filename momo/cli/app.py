@@ -63,6 +63,7 @@ def build_harness(settings: Settings) -> Harness:
         subagent_manager=manager,
     )
     holder["harness"] = harness
+    tool_ctx.confirm = harness.confirm_command
     return harness
 
 

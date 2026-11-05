@@ -113,6 +113,12 @@ class Harness:
             "dropped": len(messages) - len(result.messages) + 1,
         }))
 
+    def confirm_command(self, command: str) -> bool:
+        """Ask the user before a risky command runs. Stops the spinner first so it can't draw over the prompt."""
+        if self.animation:
+            self.animation.stop()
+        return self.renderer.ask_approval(command)
+
     # ------------------------------------------------------------------ internals
     def _run_turn(self, session: Session, text: str) -> None:
         if self.subagent_manager:
