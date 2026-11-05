@@ -19,8 +19,8 @@ def create_system_tools(ctx: ToolContext):
             command: The bash/cmd command to execute.
             timeout: in seconds.
         """
-        _DANGEROUS = {"rm", "rmdir", "del", "rd", "erase", "remove-item", "format"}
-        if "rmdir" in command or "rm" in command or "del" in command:
+       
+        if "rmdir" in command or "rm" in command or "del" in command or "python -c" in command:
             
             from rich.console import Console
             console = Console()
