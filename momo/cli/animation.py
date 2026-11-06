@@ -39,8 +39,8 @@ class ThinkingAnimation:
     def __init__(
         self,
         message: Optional[str] = None,           # fixed label; None = pick a random action per start()
-        base_style: str = "#D97757",     # style for the spinner, action text and ellipsis
-        wave_style: str = "#DAA491",  # style for the character the wave is currently on
+        base_style: str = "#e6796d",     # style for the spinner, action text and ellipsis
+        wave_style: str = "#c0938e",  # style for the character the wave is currently on
         speed: float = 10,                        # frames per second
         *,
         stream: Optional[TextIO] = None,         # defaults to sys.stdout at write time
