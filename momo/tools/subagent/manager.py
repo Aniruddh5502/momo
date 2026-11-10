@@ -19,12 +19,6 @@ from momo.core.spec import AgentSpec
 from momo.store.sessions import Session, SessionStore
 from momo.tools.registry import ToolRegistry
 
-@dataclass
-class SubagentState:
-    version: int
-    offset: int
-    messages: list[Any] # Using Any to match SessionStore message types
-
 SUBAGENT_TOOL = "call_subagent"                 # subagents never get this tool (no recursion)
 SUBAGENT_EXCLUDED_TAGS = {"orchestration"}      # any tool with these tags is never given to a subagent
 
@@ -118,9 +112,7 @@ class SubagentParser:
         )
         
         # getting the skills into the system prompt
-        from momo.core.settings import Settings
-        settings = Settings()
-        root = settings.project_root / ".momo"
+        root = s.project_root / ".momo"
         skills_dir = root / "skills"            # skills directory
         skills = sorted(skills_dir.rglob("SKILL.md"))
         skills_contents = []
@@ -224,37 +216,23 @@ class SubagentManager:
         spec = replace(config.spec, tools=tool_names)
 
         sub_id = f"sub_{main_session_id}_{name}"
-        
-        # 1. Load and Migrate State
-        raw_state = self.store.load_messages(sub_id) if self.store.exists(sub_id) else None
-        if raw_state is None:
-            state = SubagentState(version=1, offset=0, messages=[])
-        elif isinstance(raw_state, list):
-            state = SubagentState(version=1, offset=0, messages=raw_state)
-        elif isinstance(raw_state, dict):
-            state = SubagentState(**raw_state)
-        else:
-            state = SubagentState(version=1, offset=0, messages=[])
 
-        # 2. Determine window and update state metadata
-        if new_chat:
-            state.offset = len(state.messages)
-            state.version += 1
-            messages_to_use = [] 
+        # The store holds only the active context (load_messages skips compacted rows), so it
+        # is the whole history. new_chat starts from an empty history.
+        if new_chat or not self.store.exists(sub_id):
+            history: list[Any] = []
         else:
-            messages_to_use = state.messages[state.offset:]
+            history = self.store.load_messages(sub_id)
 
-        # 3. Agent Setup
         if not self.store.exists(sub_id):
-             child = self.store.create(spec, self.project_root, parent_id=main_session_id, session_id=sub_id)
+            child = self.store.create(spec, self.project_root, parent_id=main_session_id, session_id=sub_id)
         else:
-             child = self.store.get(sub_id)
+            child = self.store.get(sub_id)
 
         # Guard: Ensure child is a Session object for self.emit
-        if not hasattr(child, 'id'):
-            # Fallback if store.get returned something other than a Session object
-            from momo.store.sessions import Session
-            child = Session(id=str(child), parent_id=main_session_id, agent_name=name, project_root=self.project_root, spec=spec, title=None)
+        if not hasattr(child, "id"):
+            child = Session(id=str(child), parent_id=main_session_id, agent_name=name,
+                            project_root=self.project_root, spec=spec, title=None)
 
         model = self.model_factory.build(spec, tools)
         summarizer = self.model_factory.build(spec, [])
@@ -265,24 +243,11 @@ class SubagentManager:
         final_text = ""
         error: str | None = None
         try:
-            for event in agent.run(messages_to_use, prompt):
-                # The crash is likely here in self.emit(child, event)
-                # Let's ensure the Event itself has the session_id
+            for event in agent.run(history, prompt):
                 if not event.session_id:
-                    event.session_id = child.id if hasattr(child, 'id') else str(child)
-                
-                # Final safety check for the session object
-                session_obj = child if hasattr(child, 'id') else Session(
-                    id=str(child), 
-                    parent_id=main_session_id, 
-                    agent_name=name, 
-                    project_root=self.project_root, 
-                    spec=spec, 
-                    title=None
-                )
-                
-                self.emit(session_obj, event)
-                
+                    event.session_id = child.id
+                self.emit(child, event)
+
                 if event.type == EventType.ASSISTANT_TEXT:
                     final_text = event.payload["text"]
                 elif event.type == EventType.ERROR and not event.payload.get("recoverable", False):
@@ -290,14 +255,12 @@ class SubagentManager:
         except Exception as exc:          # report instead of letting the parent's tool node fail
             error = f"{type(exc).__name__}: {exc}"
         finally:
+            # agent.messages is the complete active context: prior history, the new prompt,
+            # every tool round of this turn, and the compaction summary if one happened.
+            # Saving it whole (no slicing by length) means nothing is lost, even after
+            # compaction or when the turn stops early.
             if agent.messages:
-                # CRITICAL FIX: Only append NEW messages to avoid exponential history growth
-                input_len = len(messages_to_use)
-                new_messages = agent.messages[input_len:]
-                updated_history = state.messages + new_messages
-                
-                # replace_messages takes a plain list of messages (not a dict)
-                self.store.replace_messages(sub_id, repair_dangling_tool_calls(updated_history))
+                self.store.replace_messages(sub_id, repair_dangling_tool_calls(agent.messages))
 
         if error:
             return f"Subagent error: {error}"

@@ -11,11 +11,11 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 class Settings:
     project_root: Path = field(default_factory=Path.cwd)
     ollama_url: str = "http://localhost:11434"
-    model: str = "nemotron-3-ultra:cloud"
+    model: str = "gemma_opus_4.6:latest"
     num_ctx: int = 65536                 # must be >= max_context_tokens + headroom
-    max_context_tokens: int = 50000      # compaction threshold
+    max_context_tokens: int = 30000      # compaction threshold
     keep_recent_messages: int = 6
-    max_iterations: int = 200
+    max_iterations: int = 250
     temperature: float = 1
     prompt_sections: tuple[str, ...] = ("soul", "user", "tool")
     # Phase 1: one DB for all projects (sessions are keyed by project_root).

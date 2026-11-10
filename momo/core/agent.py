@@ -34,6 +34,11 @@ from momo.core.spec import AgentSpec
 MAX_MALFORMED = 3            # consecutive malformed tool calls before the turn is ended
 DISPLAY_MAX_CHARS = 4000     # tool output kept in the render event (full text stays in the message)
 SUBAGENT_TOOL_NAME = "call_subagent"   # its result is shown as the subagent's own events instead
+# LangGraph's recursion_limit counts graph steps, not iterations. One iteration is three steps
+# (compact -> reasoning -> tool_node), so the limit must be derived from max_iterations. Without
+# this, LangGraph's own default (25 on older releases) stops the agent after about 7 tool rounds.
+STEPS_PER_ITERATION = 3
+RECURSION_SLACK = 20                  # START, the final reasoning step, and compaction passes
 
 
 class AgentState(TypedDict):
@@ -134,7 +139,8 @@ class Agent:
             "stop_reason": None,
             "compaction": None,
         }
-        for chunk in self._graph.stream(state, stream_mode="updates"):
+        config = {"recursion_limit": STEPS_PER_ITERATION * self.spec.max_iterations + RECURSION_SLACK}
+        for chunk in self._graph.stream(state, config=config, stream_mode="updates"):
             for node, update in chunk.items():
                 if not update:
                     continue

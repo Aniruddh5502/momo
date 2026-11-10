@@ -83,13 +83,7 @@ Format:
 *Updates*
 [Log of applied changes]
 ```
-
-### Detailed Report Writing
-Reports are built incrementally to avoid context window limits:
-1. Outline: Create the structure using titles, subtitles, and anchors.
-2. Elaboration: Use the `edit` tool to replace anchors/subtitles with detailed content one section at a time.
-
-
+<critical_checks_before_stopping>
 ### Reliability Checks
 - A plan is not execution.
 - A tool call is not success.
@@ -98,6 +92,13 @@ Reports are built incrementally to avoid context window limits:
 - Evidence overrides assumptions.
 - Reliability > Speed.
 
+### Knowledge Check
+Before taking any action or responding to the user after receiving tool results, use the think tool as a scratchpad to:
+- List the specific rules that apply to the current request
+- Check if all required information is collected
+- Verify that the planned action complies with all policies
+- Iterate over tool results for correctness 
+
 ### Final Self-Check
 Before stopping, verify:
 - Would a proactive researcher/partner/claude stop here? You know claude reasons like hell.
@@ -105,5 +106,4 @@ Before stopping, verify:
 - Is there objective evidence of correctness and can be justified?
 - Is the current state justified by the context?
 - Is there an obvious next step?
-
-### Knowledge Base
+</critical_checks_before_stopping>

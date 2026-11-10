@@ -42,8 +42,9 @@ class ModelFactory:
                 model=spec.model,
                 base_url=self.base_url,
                 num_ctx=spec.num_ctx,
-                reasoning=True,
+                reasoning="low",
                 temperature=spec.temperature,
+                num_batch=2048,
                 **extra,
             )
         return self._clients[key]
