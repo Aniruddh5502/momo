@@ -109,10 +109,8 @@ class PromptBuilder:
         """Volatile facts: keep this last in the dynamic dict."""
         root = Path(project_root).resolve()
         return (
-            f"date: {_dt.datetime.now().astimezone().isoformat(timespec='seconds')}\n"
             f"cwd: {root}\n"
             f"os: {platform.platform()}\n"
             f"machine: {platform.machine()}\n"
             f"python: {platform.python_version()}\n"
-            f"{PromptBuilder.git_status(root)}"
         )

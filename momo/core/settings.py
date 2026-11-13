@@ -12,7 +12,7 @@ class Settings:
     project_root: Path = field(default_factory=Path.cwd)
     ollama_url: str = "http://localhost:11434"
     model: str = "gemma_opus_4.6:latest"
-    num_ctx: int = 65536                 # must be >= max_context_tokens + headroom
+    num_ctx: int = 30000                 # must be >= max_context_tokens + headroom
     max_context_tokens: int = 30000      # compaction threshold
     keep_recent_messages: int = 6
     max_iterations: int = 250

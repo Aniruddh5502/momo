@@ -42,7 +42,7 @@ class ModelFactory:
                 model=spec.model,
                 base_url=self.base_url,
                 num_ctx=spec.num_ctx,
-                reasoning="low",
+                reasoning=True,
                 temperature=spec.temperature,
                 num_batch=2048,
                 **extra,

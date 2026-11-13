@@ -97,11 +97,11 @@ def agent_and_skill(root:Path)->str:
         with open(momo_md, 'r', encoding='utf-8') as file:
             momo = file.read()
             if momo == "":
-                momo_ = f".momo/momo.md\n This files is empty. The project/repo work hasn't been initialized yet."   
+                momo_ = f"<.momo/momo.md>\n This files is empty. The project/repo work hasn't been initialized yet. Please ask about the type of work you will be doing here and then organize the momo.md</.momo/momo.md>"   
             else:     
-                momo_ = f"# .momo/momo.md\nWorking Directory Root: {root}\ncontent: \n{momo}"
+                momo_ = f"<momo.md>\n# .momo/momo.md\nWorking Directory Root: {root}\ncontent: \n{momo}\n</momo.md>"
     except Exception as e:
-        momo_ = f".momo/momo.md\n This files doesn't exist: {e}"
+        momo_ = f"<momo.md>\n.momo/momo.md\n This files doesn't exist: {e}<momo.md>"
     agent_and_skills = f"{agents_prompt_}{skills_prompt_}{momo_}"
     return agent_and_skills
 
