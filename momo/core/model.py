@@ -1,53 +1,51 @@
-"""ModelFactory: builds Ollama chat models for specs.
+"""ModelFactory: builds OpenRouter chat models for specs.
 
-One ChatOllama client (and its HTTP connection pool) is created per distinct model
-configuration and reused for every turn, subagent call and summarizer. Creating a new
-client per turn leaked a socket each time, which Python then reports as a ResourceWarning.
-`bind_tools` is cheap and opens no connection, so tools are bound per call on top of the
-shared client.
+One ChatOpenAI client is created per distinct model configuration and reused for every
+turn, subagent call and summarizer. `bind_tools` is cheap, so tools are bound per call.
 """
 from __future__ import annotations
 
 import atexit
 import json
+import os
 from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import BaseTool
-from langchain_ollama import ChatOllama
-
+from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv
 from momo.core.spec import AgentSpec
+
+load_dotenv()
 
 if TYPE_CHECKING:
     from langchain_core.runnables import Runnable
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
 
 class ModelFactory:
-    def __init__(self, base_url: str = "http://localhost:11434") -> None:
+    def __init__(self, base_url: str = OPENROUTER_BASE_URL, api_key: str | None = None) -> None:
         self.base_url = base_url
-        self._clients: dict[tuple, ChatOllama] = {}
+        self.api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
+        if not self.api_key:
+            raise RuntimeError("OPENROUTER_API_KEY is not set in the environment")
+        self._clients: dict[tuple, ChatOpenAI] = {}
         atexit.register(self.close)
 
     def build(self, spec: AgentSpec, tools: list[BaseTool]) -> "Runnable":
-        """A model for `spec`, with `tools` bound. With no tools the plain model is returned
-        (used for summarization). `num_ctx` is always passed explicitly: Ollama's default
-        context is small and truncates silently."""
         llm = self._client(spec)
         return llm.bind_tools(tools) if tools else llm
 
-    def _client(self, spec: AgentSpec) -> ChatOllama:
-        extra = spec.extra.get("ollama", {})
-        key = (spec.model, spec.num_ctx, spec.temperature, json.dumps(extra, sort_keys=True, default=str))
+    def _client(self, spec: AgentSpec) -> ChatOpenAI:
+        extra = spec.extra.get("openrouter", {})
+        key = (spec.model, spec.temperature, json.dumps(extra, sort_keys=True, default=str))
         if key not in self._clients:
-            self._clients[key] = ChatOllama(
-                model=spec.model,
-                cache=True,
+            self._clients[key] = ChatOpenAI(
+                model=spec.model,          # OpenRouter slug, e.g. "qwen/qwen-2.5-72b-instruct"
                 base_url=self.base_url,
-                num_ctx=spec.num_ctx,
-                reasoning=False,
+                api_key=self.api_key,
                 temperature=spec.temperature,
-                num_thread=10,
-                num_gpu=0,
-                keep_alive="5h",
+                max_retries=2,
                 **extra,
             )
         return self._clients[key]
@@ -55,14 +53,12 @@ class ModelFactory:
     def close(self) -> None:
         """Close the HTTP connections held by every cached client. Safe to call twice."""
         for llm in self._clients.values():
-            _close_quietly(getattr(llm, "_client", None))
+            _close_quietly(getattr(llm, "root_client", None))
         self._clients.clear()
 
 
-def _close_quietly(ollama_client: Any) -> None:
-    # ollama.Client keeps an httpx.Client in `_client`; close it if the attribute exists.
-    http = getattr(ollama_client, "_client", None)
-    close = getattr(http, "close", None)
+def _close_quietly(client: Any) -> None:
+    close = getattr(client, "close", None)
     if callable(close):
         try:
             close()

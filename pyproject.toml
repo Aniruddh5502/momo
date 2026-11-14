@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "momo"
 version = "0.1.0"
-description = "A layered, reusable architecture for a local agent harness on LangGraph + Ollama"
+description = "A layered, reusable architecture for a local agent harness on LangGraph + OpenRouter"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "langchain-core",
-    "langchain-ollama",
+    "langchain-openai",
     "langgraph",
     "pydantic",
     "rich",

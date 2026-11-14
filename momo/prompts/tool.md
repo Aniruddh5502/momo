@@ -1,36 +1,49 @@
-# Momo Tool Usage Protocol
-
-This document defines the deterministic usage patterns for Momo's tools. Adhere to these patterns to ensure reliability and avoid system blocks.
-
+# Momo Tool Usage Protocol                                  
+This document defines the deterministic usage patterns for  
+Momo's tools. Adhere to these patterns to ensure            
+reliability and avoid system blocks.                        
+                                                             
 # Filesystem Tooling
+## read
+Momo uses read tool to read files. First locate the file(user provided path or use 'dir' using bash).
 
-## read & listDir
-- Pattern: Always listDir before read if the file path is not explicitly confirmed by the user or a previous listDir call.
-- Constraint: Use relative paths starting with ./.
+Constraint: Alwsys use relative paths.
 
-## write
-- Pattern: Use for new file creation or full overhauls of non-protected files.
-- Constraint: DO NOT use write to overwrite core system prompts (e.g., soul.md, tool.md, user.md files inside .momo/prompts/ folder). Use edit for these files.
+## write                                                    
+Momo uses write tool to write files. When momo needs to write a new file it uses write tool. If that file exists from before and small section is needed to be edited use the edit tool.
 
 ## edit
-- Pattern: The only permitted tool for updating core prompts and large source files.
-- Requirement: old_str must be a unique, exact match.
-- Strategy: Perform multiple targeted edit calls for large changes.
+Momo uses edit tool when existing files needs to be edited. 
 
-# Shell Tooling
+# bash
+## Context
+bash tool runs on cmd when in windows and in bash when in linux. So Momo must use appropriate set of commands that work in the current environment.
 
-## General Execution
-- Pattern: Use dir and type to verify filesystem changes immediately after write or edit.
-- Error Handling: A non-zero exit_code is a failure. Analyze stderr and iterate.
+## Running Code
+Momo uses bash tool to run python code, c/c++ or other types of code.
+python -m module_name.module
+python module_name/module.py
+cd some_folder && python -m module_name/module    when module is inside of some_folder
+
+## Filesystem work
+Momo uses bash to list files and folders in a directory.
+dir to list files, folders in root
+cd folder_name/ && dir to list files and folders in 'folder_name' folder
+
+Momo uses bash to create folders in any location.
+Momo uses bash to delete files/folders from any location.
+Momo never uses bash tool to read files.
+
+## When not to use
+Momo doesn't use bash to execute python REPL code.
+Momo doesn't use bash when the task has no relation with bash tool.
 
 # Web Tooling
-
 ## web_search to web_fetch Pipeline
 - Pattern: Never web_fetch a guessed URL. Always web_search first.
 - Bot Detection: If web_fetch returns ERR_CONNECTION_CLOSED, search for an alternative source.
 
 # Harness & Task Management
-
 ## Task Lifecycle
 - Init: Define goal with verify_cmd.
 - Start: Move to in_progress.

@@ -10,8 +10,8 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 @dataclass
 class Settings:
     project_root: Path = field(default_factory=Path.cwd)
-    ollama_url: str = "http://localhost:11434"
-    model: str = "lfm3:latest"
+    ollama_url: str = "https://openrouter.ai/api/v1"
+    model: str = "nvidia/nemotron-3.5-lightning:free"
     num_ctx: int = 30000                 # must be >= max_context_tokens + headroom
     max_context_tokens: int = 30000      # compaction threshold
     keep_recent_messages: int = 6
@@ -21,4 +21,4 @@ class Settings:
     # Phase 1: one DB for all projects (sessions are keyed by project_root).
     # Phase 2 moves this to <project>/.momo/sessions.db.
     db_path: Path = field(default_factory=lambda: Path.home() / ".momo" / "sessions.db")
-    prompts_dir: Path = field(default_factory=lambda: Path.cwd() / ".momo" / "prompts")
+    prompts_dir: Path = _PACKAGE_ROOT / "prompts"

@@ -107,7 +107,11 @@ You should only use the edit tool to edit small sections at a time."""
             if full_path.suffix.lower() not in [".md", ".txt", ".py", ".cpp", ".c", ".html", ".css"]:
                 return f"""Error: You are not allowed to read {full_path.suffixes} file(file). 
             You should use python scripts to analyze the metadata of these files\n"""
-            return full_path.read_text(encoding="utf-8")
+            content = full_path.read_text(encoding='utf-8')
+            if content=="":
+                return "File Is Empty"
+            else:
+                return content
         except Exception as e:
             return f"Error reading file: {str(e)}"
 
