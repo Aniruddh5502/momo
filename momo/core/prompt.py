@@ -75,35 +75,7 @@ class PromptBuilder:
     # take self (or cls) — it's just a plain function that happens to live 
     # inside the class."
     # gets the environment data from the CWD
-    @staticmethod
-    def git_status(root: Path) -> str:
-        git = shutil.which("git")
-        if not git:
-            return "git: not installed"
-
-        def run(*args: str) -> str:
-            return subprocess.run(
-                [git, *args],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                timeout=2,
-                errors="replace",
-            ).stdout.strip()
-
-        try:
-            top = run("rev-parse", "--show-toplevel")
-            if not top:
-                return "git: not a repository"
-            branch = run("rev-parse", "--abbrev-ref", "HEAD") or "(detached)"
-            changes = run("status", "--porcelain")
-            dirty = "dirty" if changes else "clean"
-            files = len(changes.splitlines())
-            suffix = f", {files} changed file(s)" if files else ""
-            return f"git: {top} @ {branch} ({dirty}{suffix})"
-        except (OSError, subprocess.SubprocessError) as e:
-            return f"git: unavailable ({e.__class__.__name__})"
-
+    
     @staticmethod
     def environment(project_root: Path) -> str:
         """Volatile facts: keep this last in the dynamic dict."""

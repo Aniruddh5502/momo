@@ -40,11 +40,14 @@ class ModelFactory:
         if key not in self._clients:
             self._clients[key] = ChatOllama(
                 model=spec.model,
+                cache=True,
                 base_url=self.base_url,
                 num_ctx=spec.num_ctx,
-                reasoning=True,
+                reasoning=False,
                 temperature=spec.temperature,
-                num_batch=2048,
+                num_thread=10,
+                num_gpu=0,
+                keep_alive="5h",
                 **extra,
             )
         return self._clients[key]
