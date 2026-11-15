@@ -15,6 +15,12 @@ if TYPE_CHECKING:
     from momo.cli.renderer import Renderer
     from momo.core.harness import Harness
 
+book_cloth      =   "#CC785C"
+error           =   "#BF4D43"
+focus           =   "#61AAF2"
+white           =   "#FFFFFF"
+black           =   "#000000"
+cloud_light     =   "#BFBFBA"
 
 @dataclass
 class CommandContext:
@@ -71,7 +77,9 @@ class ClearCommand(_Base):
 
     def run(self, ctx: CommandContext) -> CommandResult:
         session = ctx.harness.new_session()
-        ctx.renderer.info("Started a new session.")
+        ctx.renderer.info(f"{"\n"*20}x_O Momo Bot", style=f"{book_cloth}")
+        ctx.renderer.info(f"momo - {session.spec.model} - session {session.id[:8]} - /help", style="dim")
+        ctx.renderer.info(f"{"\n"*4}Started a new session.", style=f"{focus}")
         return CommandResult(new_session=session)
 
 
@@ -128,8 +136,10 @@ class HelpCommand(_Base):
     name, description = "help", "List commands"
 
     def run(self, ctx: CommandContext) -> CommandResult:
+        ctx.renderer.info(text=f"\n\n[avalilable slash commands]\n", style=f"dim {book_cloth}")
         for cmd in ctx.harness.commands.all():
-            ctx.renderer.info(f"/{cmd.name:<10} {cmd.description}")
+            ctx.renderer.info(f"/{cmd.name:<15} {cmd.description}", style=f"dim {focus}")
+        ctx.renderer.info(f"\n\n")
         return CommandResult()
 
 

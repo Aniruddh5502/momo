@@ -34,7 +34,7 @@ def build_harness(settings: Settings) -> Harness:
     store = SessionStore(settings.db_path)
     renderer = Renderer()
     animation = ThinkingAnimation()
-    model_factory = ModelFactory(settings.ollama_url)
+    model_factory = ModelFactory(provider="ollama")
     registry = ToolRegistry()
     tool_ctx = ToolContext(project_root=settings.project_root, session_id="")
 
@@ -112,11 +112,11 @@ def main(argv: list[str] | None = None) -> None:
     print("\n\n")
     while True:
         try:
-            console.rule()
+            console.rule(style=f"{book_cloth}")
             text = prompt_session.prompt(ANSI("\x1b[1;36m ⟩  \x1b[0m"))
-            console.rule()
+            console.rule(style=f"{book_cloth}")
         except (EOFError, KeyboardInterrupt):
-            console.rule()
+            console.rule(style=f"{book_cloth}")
             renderer.console.print()
             break
         try:

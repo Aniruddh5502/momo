@@ -53,3 +53,7 @@ Run /init in your directory to create the .momo configuration and momo.md state 
 - /clear: Reset session.
 - /resume [ID]: Restore specific session.
 - /btw: Side-query (non-contextual).
+
+# Rebuilding
+
+New plan to simplify the Agent Architecture. To Make it More scalable.

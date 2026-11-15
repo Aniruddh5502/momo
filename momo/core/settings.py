@@ -10,8 +10,10 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 @dataclass
 class Settings:
     project_root: Path = field(default_factory=Path.cwd)
+    provider:str = "ollama"
+    url:str = ""
     ollama_url: str = "https://openrouter.ai/api/v1"
-    model: str = "nvidia/nemotron-3.5-lightning:free"
+    model: str = "lfm3:latest"
     num_ctx: int = 30000                 # must be >= max_context_tokens + headroom
     max_context_tokens: int = 30000      # compaction threshold
     keep_recent_messages: int = 6

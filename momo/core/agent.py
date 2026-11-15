@@ -27,7 +27,7 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
-from momo.core.compactor import Compactor, estimate_tokens, message_text
+from momo.core.compactor import Compactor, estimate_tokens, message_text, real_token_counts
 from momo.core.events import Event, EventType
 from momo.core.spec import AgentSpec
 
@@ -213,15 +213,24 @@ class Agent:
         for chunk in self.model.stream(messages):
             merged = chunk if merged is None else merged + chunk
             meta = getattr(chunk, "response_metadata", None) or {}
-            if "eval_count" in meta:               # only Ollama's final chunk carries the counts
+            if real_token_counts(meta) is not None:   # the final chunk carries the usage
                 final_meta = dict(meta)
             if chunk.content or chunk.additional_kwargs.get("reasoning_content"):
-                streamed += 1                      # Ollama streams roughly one token per chunk
+                streamed += 1                      # roughly one token per chunk
                 if self.on_progress:
                     self.on_progress(1)
         if merged is None:
             return AIMessage(content="")
-        exact = int(final_meta.get("eval_count") or 0)
+        # OpenAI-style providers may report usage only in usage_metadata; normalize it.
+        if real_token_counts(final_meta) is None and merged.usage_metadata:
+            u = merged.usage_metadata
+            final_meta = dict(final_meta)
+            final_meta["token_usage"] = {
+                "prompt_tokens": int(u.get("input_tokens") or 0),
+                "completion_tokens": int(u.get("output_tokens") or 0),
+            }
+        counts = real_token_counts(final_meta)
+        exact = counts[1] if counts else 0
         if self.on_progress and exact:
             self.on_progress(exact - streamed)     # snap the counter to the exact number
         return AIMessage(
@@ -321,11 +330,11 @@ class Agent:
                             "name": call["name"],
                             "args": call.get("args", {}),
                         })
-                meta = getattr(ai, "response_metadata", None) or {}
+                counts = real_token_counts(getattr(ai, "response_metadata", None) or {}) or (0, 0)
                 tracker = self.compactor.tracker
                 yield Event(EventType.USAGE, {
-                    "prompt_tokens": int(meta.get("prompt_eval_count") or 0),
-                    "completion_tokens": int(meta.get("eval_count") or 0),
+                    "prompt_tokens": counts[0],
+                    "completion_tokens": counts[1],
                     "usage_percent": round(tracker.usage_percent(update["messages"]), 1),
                 })
             if update.get("retry"):

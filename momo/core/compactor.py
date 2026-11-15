@@ -55,6 +55,22 @@ def _message_tokens(msg: BaseMessage) -> int:
     return n
 
 
+def real_token_counts(meta: dict) -> tuple[int, int] | None:
+    """(prompt_tokens, completion_tokens) from a model response's metadata, or None.
+
+    Handles both formats: Ollama (`prompt_eval_count` / `eval_count`) and OpenAI-compatible
+    APIs such as OpenRouter (`token_usage` or `usage` with `prompt_tokens` / `completion_tokens`).
+    """
+    if not meta:
+        return None
+    if "prompt_eval_count" in meta or "eval_count" in meta:
+        return int(meta.get("prompt_eval_count") or 0), int(meta.get("eval_count") or 0)
+    usage = meta.get("token_usage") or meta.get("usage")
+    if usage:
+        return int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0)
+    return None
+
+
 @dataclass
 class TokenTracker:
     """Knows how many tokens the next prompt will use.
@@ -72,9 +88,13 @@ class TokenTracker:
     _anchor: int | None = None        # index of the AIMessage the real counts belong to
 
     def update_turn(self, response_metadata: dict, index: int | None = None) -> None:
-        """Record Ollama's counts for the model call that produced messages[index]."""
-        self.last_prompt_tokens = int(response_metadata.get("prompt_eval_count") or 0)
-        self.last_completion_tokens = int(response_metadata.get("eval_count") or 0)
+        """Record the real counts for the model call that produced messages[index].
+        If the provider reports no counts, stay on the estimate instead of anchoring to zero."""
+        counts = real_token_counts(response_metadata)
+        if counts is None:
+            self.reset()
+            return
+        self.last_prompt_tokens, self.last_completion_tokens = counts
         self._anchor = index
 
     def estimate(self, messages: list[BaseMessage]) -> int:

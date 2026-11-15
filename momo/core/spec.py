@@ -19,7 +19,7 @@ class AgentSpec:
     max_context_tokens: int            # compaction threshold
     keep_recent_messages: int = 6      # preserved verbatim after compaction
     max_iterations: int = 100          # hard cap on reasoning loops per turn
-    temperature: float = 0.2
+    temperature: float = 1
     extra: dict = field(default_factory=dict)   # future: permissions, hooks, ollama kwargs
 
     # -- (de)serialization: sessions snapshot their spec as JSON -------------
