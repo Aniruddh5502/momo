@@ -48,7 +48,7 @@ class OllamaServer:
     ):
         self.host = host
         self.port = port
-        self.log_file = Path(__file__).parent / "logs" / "ollama_server.log"
+        self.log_file = Path(__file__).parent / "logs" / f"ollama_server_{str(time.ctime()).replace(":","_")}.log"
         self.startup_timeout = startup_timeout
         self.extra_env = extra_env or {}
         self._process: Optional[subprocess.Popen] = None

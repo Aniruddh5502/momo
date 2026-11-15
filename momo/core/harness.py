@@ -41,7 +41,7 @@ class Harness:
         self.store = store
         self.renderer = renderer
         self.commands = commands
-        self.model_factory = model_factory or ModelFactory(settings.ollama_url)
+        self.model_factory = model_factory or ModelFactory()
         self.prompt_builder = prompt_builder or PromptBuilder(settings.prompts_dir)
         self.tool_context = tool_context
         self.animation = animation

@@ -1,19 +1,31 @@
 """Settings: process-wide defaults. Everything agent-specific lives in AgentSpec."""
 from __future__ import annotations
-
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 
+def _default_provider() -> str:
+    return os.environ.get("PROVIDER", "ollama").strip().lower()
+
+def _default_model() -> str:
+    provider = _default_provider()
+    if provider == "openrouter":
+        return os.environ.get("OPENROUTER_MODEL_NAME", "")
+    return os.environ.get("OLLAMA_MODEL_NAME", "")
 
 @dataclass
 class Settings:
     project_root: Path = field(default_factory=Path.cwd)
-    provider:str = "ollama"
+    provider:str = os.environ.get("PROVIDER","ollama")
     url:str = ""
-    ollama_url: str = "https://openrouter.ai/api/v1"
-    model: str = "ornith-1.5:9b"
+    base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_url: str = "https://openrouter.ai/api/v1"
+    model: str = field(default_factory=_default_model)
     num_ctx: int = 30000                 # must be >= max_context_tokens + headroom
     max_context_tokens: int = 30000      # compaction threshold
     keep_recent_messages: int = 6

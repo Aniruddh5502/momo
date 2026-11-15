@@ -25,14 +25,18 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 class ModelFactory:
-    def __init__(self, provider:str="ollama", base_url: str = OPENROUTER_BASE_URL, api_key: str | None = None) -> None:
-        self.provider = provider
-        if self.provider == "ollama":
-            self.base_url = "http://localhost:11434"
+    def __init__(self,base_url: str = OPENROUTER_BASE_URL, api_key: str | None = None) -> None:
+        self.provider = os.environ.get("PROVIDER","ollama")
+        
+        if self.provider    ==  "ollama":
+            self.base_url   =   "http://localhost:11434"
+            self.model      =   os.environ.get("OLLAMA_MODEL_NAME","ornith-1.5:9b")
             self._clients: dict[tuple, ChatOllama] = {}
             atexit.register(self.close)
-        if self.provider == "openrouter":
-            self.base_url = "https://openrouter.ai/api/v1"
+        
+        if self.provider    ==  "openrouter":
+            self.base_url   =   "https://openrouter.ai/api/v1"
+            self.model      =   os.environ.get("OPENROUTER_MODEL_NAME", "nvidia/nemotron-3.5-lightning:free")
             self.api_key  = api_key or os.environ.get("OPENROUTER_API_KEY","")
             if not self.api_key:
                 raise RuntimeError("OPENROUTER_API_KEY is not set in .env file.\nFormat should be OPENROUTER_API_KEY='api_key_string'")
@@ -61,7 +65,7 @@ class ModelFactory:
         if self.provider == "ollama":
             key = spec.name
             self._clients[key]=ChatOllama(
-                model=spec.model,
+                model=self.model,
                 base_url=self.base_url,
                 temperature=spec.temperature,
                 reasoning=False,

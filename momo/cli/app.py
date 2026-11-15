@@ -35,7 +35,7 @@ def build_harness(settings: Settings) -> Harness:
     store = SessionStore(settings.db_path)
     renderer = Renderer()
     animation = ThinkingAnimation()
-    model_factory = ModelFactory(provider="ollama")
+    model_factory = ModelFactory()
     registry = ToolRegistry()
     tool_ctx = ToolContext(project_root=settings.project_root, session_id="")
 
@@ -58,7 +58,6 @@ def build_harness(settings: Settings) -> Harness:
     register_builtin_commands(commands)
     harness = Harness(
         settings, registry, store, renderer, commands,
-        model_factory=model_factory,
         tool_context=tool_ctx,
         animation=animation,
         subagent_manager=manager,
