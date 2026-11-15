@@ -22,14 +22,40 @@ def create_system_tools(ctx: ToolContext):
     def bash(command: str, timeout:int=30) -> str:
         """Executes a shell command in the project root.
         Args:
-            command: The bash/cmd command to execute.
+            command: The command to execute.
             timeout: in seconds.
         """
-       
+        # Absolute paths
+        ABSOLUTE_PATH = re.compile(
+            r"""(?x)
+            (?:
+                (?:(?<=^)|(?<=[\s'"=:(]))   # boundary before the path
+                (?:
+                    /[^\s'"]+                # Unix absolute path
+                    |
+                    [A-Za-z]:[\\/][^\s'"]*   # Windows absolute path (C:\... or C:/...)
+                    |
+                    \\\\[^\s'"]+             # UNC path (\\server\share)
+                )
+            )
+            """
+        )
+        # check if the agent is using absolute path.
+        # if yes then we decline the execution and return a warning
+        if ABSOLUTE_PATH.search(command):
+            return """<WARNING>
+        Command contains absolute paths and has been declined. 
+        Momo must use relative paths
+        </WARNING>"""
+        
+        
+        # check if commands need approval
         if NEEDS_APPROVAL.search(command):
             # No way to ask (ctx.confirm not set) -> decline. Otherwise the user decides.
             if ctx.confirm is None or not ctx.confirm(command):
-                return "<warning>User has Declined to run this command</warning>"
+                return """<WARNING>User has Declined to run this command
+            You must stop running commands like this and consult with the user
+            </WARNING>"""
         try:
             # Run command in the project root directory
             result = subprocess.run(
@@ -85,33 +111,52 @@ You should only use the edit tool to edit small sections at a time."""
             return f"Error writing file: {str(e)}"
         
     @tool
-    def read(filePath: str) -> str:
+    def read(filePath: str, start: int = 0, end: int = 100) -> str:
         """Reads the content of a file from the filesystem.
-            
+
         Args:
             filePath: Path to the file to read, relative to the project root.
+            start: First line to return (0-based, inclusive). Defaults to 0.
+            end: Last line to return (0-based, exclusive). Defaults to 100.
+                Use end=-1 to read to the end of the file.
         """
         try:
-            # Use project_root from context to ensure it reads from the project 
-            # the agent is actually operating on, regardless of launch directory.
             full_path = (ctx.project_root / filePath).resolve()
-                
+
             # Security check: Ensure the file is actually inside the project root
             if not full_path.is_relative_to(ctx.project_root.resolve()):
                 return f"Error: Access denied. Path {filePath} is outside the project root."
-    
+
             if not full_path.exists():
                 return f"Error: File {filePath} not found."
             if not full_path.is_file():
                 return f"Error: {filePath} is not a file."
             if full_path.suffix.lower() not in [".md", ".txt", ".py", ".cpp", ".c", ".html", ".css"]:
-                return f"""Error: You are not allowed to read {full_path.suffixes} file(file). 
+                return f"""Error: You are not allowed to read {full_path.suffixes} file(file).
             You should use python scripts to analyze the metadata of these files\n"""
+
             content = full_path.read_text(encoding='utf-8')
-            if content=="":
+            if content == "":
                 return "File Is Empty"
-            else:
-                return content
+
+            lines = content.splitlines(keepends=True)
+            total = len(lines)
+
+            # Normalize
+            if start < 0:
+                start = 0
+            if end == -1 or end > total:
+                end = total
+            if end <= start:
+                return f"Error: end ({end}) must be greater than start ({start})."
+
+            selected = lines[start:end]
+            body = "".join(selected)
+
+            # Helpful header so the agent knows whether truncation occurred
+            header = f"[Showing lines {start}-{min(end, total) - 1} of {total}]\n"
+            return header + body
+
         except Exception as e:
             return f"Error reading file: {str(e)}"
 
