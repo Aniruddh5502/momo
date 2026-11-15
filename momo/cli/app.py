@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> None:
     
     prompt_session = _make_session()
     
-    print("\n\n\n\n\n\n\n\n")
+    print(f"{'\n'*8}")
     console.print(f"[{book_cloth}]{theme_char} Momo Bot[/]")
     renderer.info(f"momo · {session.spec.model} · session {session.id[:8]} · /help for commands")
     print("\n\n")
