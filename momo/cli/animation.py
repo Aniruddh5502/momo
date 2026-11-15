@@ -22,8 +22,7 @@ from typing import Optional, TextIO
 from rich.console import Console
 from rich.text import Text
 
-UNICODE_FRAMES = ["✢", "✳", "✵", "✼", "✻", "✶", "✼", "✽"]
-ASCII_FRAMES = ["|", "/", "-", "\\"]
+UNICODE_FRAMES = ["✢", "✳", "✵", "✼", "✻", "✶", "✻", "✼", "✽", "✼", "✶", "✻"]
 
 CLEAR_LINE = "\r\033[2K"
 

@@ -19,6 +19,7 @@ from momo.core.settings import Settings
 from momo.store.sessions import SessionStore
 from momo.tools.registry import ToolContext, ToolRegistry, register_all
 from momo.tools.subagent.manager import SubagentManager
+from momo.ollama_server.ollama import OllamaServer
 
 console = Console()
 
@@ -86,6 +87,10 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--project", default=None, help="project root (default: current directory)")
     args = parser.parse_args(argv)
 
+    # starting ollama server
+    ollama      =   OllamaServer(host="127.0.0.1", port=11434)
+    ollama.start()
+    
     settings = Settings()
     if args.project:
         settings.project_root = Path(args.project).resolve()
@@ -118,6 +123,7 @@ def main(argv: list[str] | None = None) -> None:
         except (EOFError, KeyboardInterrupt):
             console.rule(style=f"{book_cloth}")
             renderer.console.print()
+            ollama.stop()
             break
         try:
             session = harness.handle(session, text)

@@ -1,3 +1,4 @@
 .momo/
 __pycache__/
 .env
+ollama_server.log
