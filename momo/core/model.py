@@ -66,7 +66,7 @@ class ModelFactory:
                 temperature=spec.temperature,
                 reasoning=False,
                 disable_streaming=True,
-                keep_alive=86400,
+                keep_alive=-1,
                 num_ctx=spec.num_ctx,
                 num_thread=10,
                 num_gpu=0,

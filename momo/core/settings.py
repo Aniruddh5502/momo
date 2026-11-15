@@ -13,7 +13,7 @@ class Settings:
     provider:str = "ollama"
     url:str = ""
     ollama_url: str = "https://openrouter.ai/api/v1"
-    model: str = "lfm3:latest"
+    model: str = "ornith-1.5:9b"
     num_ctx: int = 30000                 # must be >= max_context_tokens + headroom
     max_context_tokens: int = 30000      # compaction threshold
     keep_recent_messages: int = 6
