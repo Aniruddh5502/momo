@@ -8,10 +8,6 @@ momo.egg-info/dependency_links.txt
 momo.egg-info/entry_points.txt
 momo.egg-info/requires.txt
 momo.egg-info/top_level.txt
-momo/builtin/__init__.py
-momo/builtin/prompts/identity.md
-momo/builtin/prompts/thinking.md
-momo/builtin/prompts/tool_use.md
 momo/cli/__init__.py
 momo/cli/animation.py
 momo/cli/app.py
@@ -32,15 +28,15 @@ momo/momo_data/momo.md
 momo/momo_data/agents/data-analyst.md
 momo/momo_data/agents/researcher.md
 momo/momo_data/agents/reviewer.md
-momo/momo_data/skills/code-review/SKILL.md
 momo/momo_data/skills/csv/SKILL.md
 momo/momo_data/skills/csv/scripts/analyze_csv.py
 momo/momo_data/skills/csv/scripts/anomaly_detector.py
 momo/momo_data/skills/csv/scripts/filter_csv.py
+momo/momo_data/skills/data-visualization/SKILL.md
 momo/momo_data/skills/frontend-design/SKILL.md
+momo/momo_data/skills/frontend-design/scripts/detect_overlaps.py
 momo/momo_data/skills/frontend-design/scripts/render_website.py
-momo/momo_data/skills/graph_design/SKILL.md
-momo/momo_data/skills/plotter/SKILL.md
+momo/momo_data/skills/reporting/SKILL.md
 momo/momo_data/skills/skill-creator/SKILL.md
 momo/momo_data/skills/skill-creator/agents/analyzer.md
 momo/momo_data/skills/skill-creator/agents/comparator.md
@@ -61,12 +57,10 @@ momo/momo_data/skills/skill-creator/scripts/utils.py
 momo/momo_data/state/progress.log
 momo/momo_data/state/state.json
 momo/momo_data/state/state.json.bak
+momo/ollama_server/ollama.py
+momo/ollama_server/logs/ollama_server_Mon Nov 16 00_40_56 2026.log
+momo/ollama_server/logs/ollama_server_Mon Nov 16 12_52_36 2026.log
 momo/prompts/compaction.md
-momo/prompts/critique.md
-momo/prompts/executor.md
-momo/prompts/prompts.py
-momo/prompts/researcher.md
-momo/prompts/reviewer.md
 momo/prompts/soul.md
 momo/prompts/tool.md
 momo/prompts/user.md
@@ -80,4 +74,5 @@ momo/tools/taskState.py
 momo/tools/web_tools.py
 momo/tools/subagent/manager.py
 momo/tools/subagent/tools.py
+momo/tools/think-tool/think.py
 tests/test_phase1.py

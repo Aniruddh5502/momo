@@ -15,6 +15,7 @@ dependencies = [
     "pydantic",
     "rich",
     "ddgs",
+    "langchain_openai",
 ]
 
 [project.scripts]

@@ -122,7 +122,6 @@ def main(argv: list[str] | None = None) -> None:
         except (EOFError, KeyboardInterrupt):
             console.rule(style=f"{book_cloth}")
             renderer.console.print()
-            ollama.stop()
             break
         try:
             session = harness.handle(session, text)

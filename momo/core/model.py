@@ -72,7 +72,7 @@ class ModelFactory:
                 disable_streaming=True,
                 keep_alive=-1,
                 num_ctx=spec.num_ctx,
-                num_thread=10,
+                num_thread=8,
                 num_gpu=0,
             )
             return self._clients[key]

@@ -1,6 +1,7 @@
 langchain-core
-langchain-ollama
+langchain-openai
 langgraph
 pydantic
 rich
 ddgs
+langchain_openai

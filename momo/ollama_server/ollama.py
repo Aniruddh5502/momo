@@ -64,7 +64,7 @@ class OllamaServer:
         # THE FIX: full-size SWA cache. llama.cpp reads this directly
         # from the environment; no CLI flag needs to appear.
         env["LLAMA_ARG_SWA_FULL"] = "1"
-
+ 
         # Keep model resident so the KV cache survives between turns.
         env.setdefault("OLLAMA_KEEP_ALIVE", "-1")
 

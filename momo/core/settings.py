@@ -26,8 +26,8 @@ class Settings:
     base_url: str = "https://openrouter.ai/api/v1"
     openrouter_url: str = "https://openrouter.ai/api/v1"
     model: str = field(default_factory=_default_model)
-    num_ctx: int = 30000                 # must be >= max_context_tokens + headroom
-    max_context_tokens: int = 30000      # compaction threshold
+    num_ctx: int = 70000                 # must be >= max_context_tokens + headroom
+    max_context_tokens: int = 60000      # compaction threshold
     keep_recent_messages: int = 6
     max_iterations: int = 250
     temperature: float = 0.5
