@@ -54,7 +54,7 @@ class Renderer:
         """Show a command and ask 1 (approve) or 2 (decline). Anything but 1 means no."""
         if not sys.stdin.isatty():          # no person to answer (pipe, script, CI)
             return False
-        self.console.print(Text.assemble(("✽ ", "#c6613f"), ("Momo wants to run this command:", "dim")))
+        self.console.print(Text.assemble(("✼ ", "#c6613f"), ("Momo wants to run this command:", "dim")))
         self.console.print(Text("  " + command, style="#c6613f"))
         self.console.print(Text("  1. Approve\n  2. Decline"))
         try:
@@ -83,7 +83,9 @@ class Renderer:
     # ------------------------------------------------------------------ handlers
     def _on_user_message(self, e: Event, live: bool) -> None:
         if not live and not e.agent:
-            self.console.print(Text.assemble(("› ", "bold cyan"), e.payload.get("text", "")))
+            self.console.rule(style="#c6613f")
+            self.console.print(Text.assemble(("⟩ ", "bold cyan"), e.payload.get("text", "")))
+            self.console.rule(style="#c6613f")
             self.console.print("")
 
     def _on_assistant_text(self, e: Event, live: bool) -> None:
@@ -139,7 +141,7 @@ class Renderer:
         if tag:
             parts.append(tag)
         # The "✽ " marker, the bold tool name, then the args in dim text.
-        parts += [("✽ ", color or "white"), (name, f"bold {color}".strip()), (f"     {args_str}", "dim")]
+        parts += [("✼ ", color or "white"), (name, f"bold {color}".strip()), (f"     {args_str}", "dim")]
         # Print the whole line on one console line.
         self.console.print(Text.assemble(*parts))
 

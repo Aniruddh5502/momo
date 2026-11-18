@@ -74,6 +74,8 @@ class ModelFactory:
                 num_ctx=spec.num_ctx,
                 num_thread=8,
                 num_gpu=0,
+                repeat_last_n=1000,
+                repeat_penalty=1.2,
             )
             return self._clients[key]
 
