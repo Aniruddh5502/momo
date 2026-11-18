@@ -36,7 +36,6 @@ Every command runs with the project root as its working directory. Each call sta
 - Never use `python -c` or `py -c`. These are gated behind user approval, and the user often declines them. Write a script file and run it instead.
 - Use `python -m` with a dotted module path, not a slash path: `python -m <package>.<module>`, not `python -m <package>/<module>`.
 - Commands time out after 30 seconds by default. For longer jobs, pass `timeout` in seconds.
-- Do not start servers, watchers, or anything that waits for keyboard input. These hang until the timeout. Pass input through a file or arguments instead.
 - Read both the `Output:` and `Errors:` sections. A non-zero exit with no message means the command failed without saying why.
 
 ## Running code
@@ -48,14 +47,7 @@ Every command runs with the project root as its working directory. Each call sta
 - If `python` is not found on Linux, try `python3`.
 - Run from the project root. Do not `cd` into a folder first.
 
-### C / C++
-1. Confirm a compiler is available: `g++ --version` (or `gcc --version` for C).
-2. Compile with relative paths. On Windows: `g++ <source>.cpp -o <output_folder>\<name>.exe`. On Linux: `g++ <source>.cpp -o <output_folder>/<name>`.
-3. Run the binary. On Windows: `.\<output_folder>\<name>.exe`. On Linux: `./<output_folder>/<name>`.
-4. Create the output folder first if it does not exist.
-
 ## Filesystem work
-
 ### Listing
 | Task | Windows (PowerShell) | Linux (sh) |
 |---|---|---|
@@ -78,6 +70,12 @@ Use the dedicated file-writing tool for text files if Momo has one. Use bash onl
 - Deletion is gated by user approval. Any command containing `rm`, `rmdir`, `rd`, `del`, `erase`, `ri`, `unlink`, or `Remove-Item` triggers an approval prompt.
 - If the result says "User has Declined to run this command", stop. Do not retry with another command, and do not try to delete the item another way. Tell the user what you want to delete and ask them to confirm.
 - Deletion only works inside the project root, because absolute paths are declined.
+
+## Temporary and scratch files
+- Never write to `/tmp`, `$HOME`, `%TEMP%`, or any other location outside the project root. The tool declines them.
+- If you need a scratch script, create it in the project with the file-writing tool, using a relative path such as `scratch/check.py`, then run it with `python scratch/check.py` (or `python -m scratch.check` if `scratch` is a package).
+- Never write files with heredocs (`cat > file <<EOF`) or `echo ... > file`. These do not work reliably across PowerShell and sh.
+- Delete scratch files you created only after user approval, following the deletion rules above.
 
 ## Things bash must not be used for
 - Reading file contents. Use the dedicated file-reading tool.
