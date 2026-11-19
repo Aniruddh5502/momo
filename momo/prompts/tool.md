@@ -55,9 +55,10 @@ Ex:
 Task tools are for your convinience, when a task can be followed without the task state tools, at that time task state tools are not needed to use. 
 Use task state tools only for tasks that can be verified with running codes
 ex: 
-1. python run_tests.py
-2. ls report.md
-3. python tests/test_1.py
+1. cmd_verify = python run_tests.py
+2. cmd_verify = ls report.md
+3. cmd_verify = python tests/test_1.py
+
 For non coding tasks if task update/submit fails, Momo can just clear the task state, no need to go through formality of performing the act of task state management when the task is already done.
 For coding task, if task state verification failed to verify by verify_cmd, then clear the task state and use bash to run the tests for verification.
 
