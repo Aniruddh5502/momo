@@ -18,23 +18,14 @@ Ex:
 - Read both the `Output:` and `Errors:` sections. A non-zero exit with no message means the command failed without saying why.
 
 ## Filesystem work
-### Listing
-* find files: `Get-ChildItem -Path <folder> -Recurse -Filter <pattern>`
-* list files and folders, recursively: `Get-ChildItem -Path <folder> -Recurse`
-* list files and folders, normally: `Get-ChildItem -Path <folder>`
-* search specific types of files: `Get-ChildItem -Path <folder> -Recurse -Include *.<ext>`
-* search text inside files: `Select-String -Path <folder>\*.<ext> -Pattern <regex> -Recurse`
-* delete files/folders: `Remove-Item -Path <path> -Recurse -Force` (add `-WhatIf` first to preview)
-* read a file: `Get-Content -Path <file>`
-* write a file: `Set-Content -Path <file> -Value <text> -Encoding utf8`
-* append to a file: `Add-Content -Path <file> -Value <text>`
-* copy files/folders: `Copy-Item -Path <src> -Destination <dst> -Recurse`
-* move or rename: `Move-Item -Path <src> -Destination <dst>`
-* check a path exists: `Test-Path -Path <path>`
-* list running processes: `Get-Process`
-* stop a process: `Stop-Process -Name <name>`
-* make a folder: `New-Item -ItemType Directory -Path <folder> -Force`
-* check exit code of a native program: `$LASTEXITCODE`
+
+New-Item, mkdir              ✅      Creates directories files
+Get-Location                 ✅      Shows current working dir
+Test-Path                    ✅      Path existence check
+Get-Content                  ✅      Read file contents
+Set-Content                  ✅      Write files
+Remove-Item                  ✅      Delete items (-Recurse -Force needed    for folders)
+Simple PowerShell built-ins  ✅      Single-command only
 
 *Use `-Name` when listing so the output is relative. Without it, PowerShell prints full absolute paths, which the tool may decline.*
 
