@@ -26,7 +26,7 @@ def get_agents(agents_path:Path)->list[dict]:
                 "color":post.get("color"),
                 "sessions":post.get("sessions"),
                 "type":post.get("type"),
-                "path":agent,
+                "path":f"`{agent.relative_to(settings.project_root)}`",
                 "content":post.content,
             }
             agents_descriptions.append(agent_content)
@@ -46,7 +46,7 @@ def get_skills(skills_path:Path)->list[dict]:
             "name":post.get("name"),
             "description":post.get("description"),
             "metadata":post.get("metadata"),
-            "path":skill,
+            "path":f"`{skill.relative_to(settings.project_root)}`",
             "content":post.content,
         }
         skills_contents.append(skill_content)
