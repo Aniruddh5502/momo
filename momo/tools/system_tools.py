@@ -105,9 +105,6 @@ def create_system_tools(ctx: ToolContext):
     @tool
     def bash(command: str, timeout: int = 30) -> str:
         """Executes a PowerShell command in the project root.
-        Commands run with the project root as the working directory, so do not use `cd`.
-        Use relative paths only (e.g. `dir tests\\assisted_nn`, not `dir C:\\...`).
-        Use PowerShell syntax on Windows, e.g. `Get-ChildItem -Recurse`, not cmd switches like `dir /s`.
         Args:
             command: The command to execute.
             timeout: in seconds.

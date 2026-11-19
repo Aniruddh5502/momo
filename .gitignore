@@ -3,3 +3,4 @@ __pycache__/
 .env
 ollama_server.log
 logs/
+prompt_eng/

@@ -19,8 +19,8 @@ from rich.text import Text
 
 from momo.core.events import Event
 
-MAX_RESULT_LINES = 10
-MAX_ARG_CHARS = 100
+MAX_RESULT_LINES = 4
+MAX_ARG_CHARS = 500
 
 # Used when a subagent doesn't set `color:`. Picked by hashing the name, so the same
 # subagent gets the same color every session.
@@ -99,7 +99,7 @@ class Renderer:
         self.console.print(Markdown(e.payload.get("text", ""), style=color) if color else Markdown(e.payload.get("text", "")))
 
     def _on_assistant_think(self, e: Event, live: bool) -> None:
-        style = f"dim italic {self._color(e)}".strip()
+        style = f"dim {self._color(e)}".strip()
         self.console.print(Text(e.payload.get("text", ""), style=style))
 
     # ------------------------------------------------------------------ tool calls
@@ -141,32 +141,21 @@ class Renderer:
         if tag:
             parts.append(tag)
         # The "✽ " marker, the bold tool name, then the args in dim text.
-        parts += [("✼ ", color or "white"), (name, f"bold {color}".strip()), (f"     {args_str}", "dim")]
+        parts += [("✼ ", color or "white"), (name, f"bold {color}".strip()), (f"{args_str}", "dim")]
         # Print the whole line on one console line.
         self.console.print(Text.assemble(*parts))
 
     def _format_args(self, name: str, raw_args: dict) -> str:
         """Header text for a tool call. Add a branch here for a tool that needs its own format."""
-        # Special case: task_init gets a short summary instead of the full task list.
+        # Special case: task_init gets one task name per line instead of the full task list.
         if name == "task_init" and isinstance(raw_args.get("tasks"), list):
-            tasks = raw_args["tasks"]
-            # Collect the name of each task (skip anything that is not a dict).
-            names = []
-            for t in tasks:
-                if isinstance(t, dict):
-                    names.append(t.get("name", "?"))
-            # For example: "4 task(s): a, b, c"
-            args_str = str(len(tasks)) + " task(s): " + ", ".join(names[:3])
-            # More than 3 names: add "…" to show the list was cut short.
-            if len(names) > 3:
-                args_str += "…"
-        else:
-            # Default: key=value pairs, for example: path='a.py', limit=10
-            parts = []
-            for k, v in raw_args.items():
-                # repr(v) puts quotes around strings, so the value is shown exactly.
-                parts.append(k + " " + str(v))
-            args_str = " ".join(parts)
+            names = [str(t.get("name", "?")) for t in raw_args["tasks"] if isinstance(t, dict)]
+            return "\n" + "\n".join(names)
+
+        # Default: key=value pairs, for example: path 'a.py' limit 10.
+        # A leading space keeps the args apart from the tool name in the header.
+        parts = [f"{k} {v}" for k, v in raw_args.items()]
+        args_str = (" " + " ".join(parts)) if parts else ""
         # Keep the header to one line: cut it at MAX_ARG_CHARS and add "…".
         if len(args_str) > MAX_ARG_CHARS:
             args_str = args_str[:MAX_ARG_CHARS - 1] + "…"
@@ -200,11 +189,13 @@ class Renderer:
 
     def _on_compaction(self, e: Event, live: bool) -> None:
         p = e.payload
+        self.console.print("\n"*5)
         self.console.print(Rule(
             f"context compacted: {p.get('tokens_before', 0):,} → {p.get('tokens_after', 0):,} tokens "
             f"({p.get('dropped', 0)} messages summarized)",
             style="magenta",
         ))
+        self.console.print("\n"*5)
 
     def _on_usage(self, e: Event, live: bool) -> None:
         if e.agent:
