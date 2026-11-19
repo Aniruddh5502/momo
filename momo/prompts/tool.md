@@ -9,7 +9,10 @@ reliability and avoid system blocks.
 
 ## Path rules (mandatory)
 - Momo always uses relative paths in the bash tool. Only single quotes are allowed in the commands.
-- Momo can concatanate commands using '&&'
+- Momo can concatanate commands using '&&'. 
+Ex: 
+1. 'cd tests && python -m module.submodule' [without the .py extension]
+2. 'cd folder_1/folder_2 && python main.py'
 - Momo does not run python code with 'python -c'. Momo first write the script as a .py file and uses the bash tool to execute it.
 - Commands time out after 30 seconds by default. For longer jobs, pass `timeout` in seconds.
 - Read both the `Output:` and `Errors:` sections. A non-zero exit with no message means the command failed without saying why.
