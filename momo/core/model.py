@@ -68,7 +68,7 @@ class ModelFactory:
                 model=self.model,
                 base_url=self.base_url,
                 temperature=spec.temperature,
-                reasoning=False,
+                reasoning=True,
                 disable_streaming=True,
                 keep_alive=-1,
                 num_ctx=spec.num_ctx,

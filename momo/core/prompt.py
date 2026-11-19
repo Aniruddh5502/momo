@@ -81,7 +81,6 @@ class PromptBuilder:
         """Volatile facts: keep this last in the dynamic dict."""
         root = Path(project_root).resolve()
         return (
-            f"cwd: {root}\n"
             f"os: {platform.platform()}\n"
             f"machine: {platform.machine()}\n"
             f"python: {platform.python_version()}\n"
