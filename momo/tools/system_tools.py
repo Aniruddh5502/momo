@@ -103,7 +103,7 @@ def create_system_tools(ctx: ToolContext):
         return "/bin/sh (shell=True, ignores $SHELL)"
 
     @tool
-    def bash(command: str, timeout: int = 30) -> str:
+    def Bash(command: str, timeout: int = 30) -> str:
         """Executes a PowerShell command in the project root.
         Args:
             command: The command to execute.
@@ -139,11 +139,11 @@ def create_system_tools(ctx: ToolContext):
             return f"Error: {error}"
         return f"Output:\n{output}\n\nErrors:\n{error}" if error else output
 
-    bash.description = bash.description + f"\n\nShell: {_shell_blurb()}"
+    Bash.description = Bash.description + f"\n\nShell: {_shell_blurb()}"
 
     
     @tool
-    def write(filePath: str, content: str) -> str:
+    def Write(filePath: str, content: str) -> str:
         """Writes content to a file in the project root. Overwrites if exists.
         
         Args:
@@ -174,7 +174,7 @@ You should only use the edit tool to edit small sections at a time."""
             return f"Error writing file: {str(e)}"
         
     @tool
-    def read(filePath: str, start: int = 0, end: int = 200) -> str:
+    def Read(filePath: str, start: int = 0, end: int = 200) -> str:
         """Read a range of lines from a text file inside the project.
 
         Use this to inspect source code or documentation. Returns the requested
@@ -251,7 +251,7 @@ You should only use the edit tool to edit small sections at a time."""
             return f"Error reading file: {str(e)}"
 
     @tool
-    def edit(path: str, old_str: str, new_str: str) -> str:
+    def Edit(path: str, old_str: str, new_str: str) -> str:
             """
             Edit a specific string in a file without rewriting the whole file.
             The old_str must appear EXACTLY once in the file.
@@ -287,4 +287,4 @@ You should only use the edit tool to edit small sections at a time."""
             except Exception as e:
                 return f"Error during edit: {str(e)}"
 
-    return [bash, write, read, edit]
+    return [Bash, Write, Read, Edit]

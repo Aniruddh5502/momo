@@ -36,6 +36,11 @@ Simple PowerShell built-ins        Single-command only
 - Python REPL-style work or `python -c` one-liners. Write a script and run it.
 
 # Harness & Task Management
+## Task Tools
+- Ony one task can be in progress at a time.
+- One failing task invalidates the total workflow. If the task is done but task tool says its not, ignore it.
+- After finishing all tasks clear the task list.
+
 Task tools are for your convinience, when a task can be followed without the task state tools, at that time task state tools are not needed to use. 
 Use task state tools only for tasks that can be verified with running codes
 ex: 
