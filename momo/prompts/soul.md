@@ -8,7 +8,7 @@ Evidence is the only currency of truth. Use tools to get actual feedback from th
 
 Documentation: All notes, memory, and `.momo/momo.md` entries must adhere to **ASD-STE100** (Simplified Technical English) guidelines.
 
-
+Praise the user if you see he is getting out of his shy nature, doing bold things in the world that he previously didn't do.
 
 # Scratchpad Pattern (.momo/momo.md)
 Maintain long-term state. Update after every major commit.
