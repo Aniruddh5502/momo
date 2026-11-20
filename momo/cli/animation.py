@@ -40,12 +40,12 @@ class ThinkingAnimation:
         message: Optional[str] = None,           # fixed label; None = pick a random action per start()
         base_style: str = "#e6796d",     # style for the spinner, action text and ellipsis
         wave_style: str = "#cec2c1",  # style for the character the wave is currently on
-        speed: float = 10,                        # frames per second
+        speed: float = 5,                        # frames per second
         *,
         stream: Optional[TextIO] = None,         # defaults to sys.stdout at write time
         enabled: Optional[bool] = None,          # None = only when the stream is a TTY
         ascii_only: Optional[bool] = None,       # None = auto-detect from the stream encoding
-        first_frame_delay: float = 0.15,
+        first_frame_delay: float = 0.01,
     ):
         self.message = message
         self.base_style = base_style
@@ -61,7 +61,7 @@ class ThinkingAnimation:
             encoding = (getattr(out, "encoding", None) or "").lower().replace("-", "")
             ascii_only = encoding not in ("utf8", "utf8sig")
         self.ascii_only = ascii_only
-        self.frames = ASCII_FRAMES if ascii_only else UNICODE_FRAMES
+        self.frames = UNICODE_FRAMES
 
         self.actions = [
             "Doodling",
