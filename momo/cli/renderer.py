@@ -149,7 +149,7 @@ class Renderer:
         """Header text for a tool call. Add a branch here for a tool that needs its own format."""
         # Special case: task_init gets one task name per line instead of the full task list.
         if name == "task_init" and isinstance(raw_args.get("tasks"), list):
-            names = [str(t.get("name", "?")) for t in raw_args["tasks"] if isinstance(t, dict)]
+            names = [f" ⏺ {str(t.get("name", "?"))}" for t in raw_args["tasks"] if isinstance(t, dict)]
             return "\n" + "\n".join(names)
 
         # Default: key=value pairs, for example: path 'a.py' limit 10.
