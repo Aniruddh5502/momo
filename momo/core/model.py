@@ -68,14 +68,14 @@ class ModelFactory:
                 model=self.model,
                 base_url=self.base_url,
                 temperature=spec.temperature,
-                reasoning=True,
+                reasoning=False,
                 disable_streaming=True,
                 keep_alive=-1,
                 num_ctx=spec.num_ctx,
-                num_thread=10,
+                num_thread=6,
                 num_gpu=0,
                 repeat_last_n=1000,
-                repeat_penalty=1.2,
+                repeat_penalty=1.05,
             )
             return self._clients[key]
 

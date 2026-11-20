@@ -18,14 +18,14 @@ Ex:
 - Read both the `Output:` and `Errors:` sections. A non-zero exit with no message means the command failed without saying why.
 
 ## Filesystem work
-
-New-Item, mkdir              ✅      Creates directories files
-Get-Location                 ✅      Shows current working dir
-Test-Path                    ✅      Path existence check
-Get-Content                  ✅      Read file contents
-Set-Content                  ✅      Write files
-Remove-Item                  ✅      Delete items (-Recurse -Force needed    for folders)
-Simple PowerShell built-ins  ✅      Single-command only
+Use these commands for normal use cases.
+New-Item, mkdir                    Creates directories files
+Get-Location                       Shows current working dir
+Test-Path                          Path existence check
+Get-Content                        Read file contents
+Set-Content                        Write files
+Remove-Item                        Delete items (-Recurse -Force needed    for folders)
+Simple PowerShell built-ins        Single-command only
 
 *Use `-Name` when listing so the output is relative. Without it, PowerShell prints full absolute paths, which the tool may decline.*
 
@@ -34,13 +34,6 @@ Simple PowerShell built-ins  ✅      Single-command only
 ## Things bash must not be used for
 - Reading file contents. Use the dedicated file-reading tool.
 - Python REPL-style work or `python -c` one-liners. Write a script and run it.
-- Tasks unrelated to running code, managing files, or running project tooling.
-- Network access, system-wide installs, or changes to system settings.
-
-# Web Tooling
-## web_search to web_fetch Pipeline
-- Pattern: Never web_fetch a guessed URL. Always web_search first.
-- Bot Detection: If web_fetch returns ERR_CONNECTION_CLOSED, search for an alternative source.
 
 # Harness & Task Management
 Task tools are for your convinience, when a task can be followed without the task state tools, at that time task state tools are not needed to use. 
