@@ -30,19 +30,28 @@ class ModelFactory:
         
         if self.provider    ==  "ollama":
             self.base_url   =   "http://localhost:11434"
-            self.model      =   os.environ.get("OLLAMA_MODEL_NAME","ornith-1.5:9b")
+            self.model      =   os.environ.get("MODEL_NAME","ornith-1.5:9b")
             self._clients: dict[tuple, ChatOllama] = {}
             atexit.register(self.close)
         
         if self.provider    ==  "openrouter":
             self.base_url   =   "https://openrouter.ai/api/v1"
-            self.model      =   os.environ.get("OPENROUTER_MODEL_NAME", "nvidia/nemotron-3.5-lightning:free")
+            self.model      =   os.environ.get("MODEL_NAME", "nvidia/nemotron-3.5-lightning:free")
             self.api_key  = api_key or os.environ.get("OPENROUTER_API_KEY","")
             if not self.api_key:
                 raise RuntimeError("OPENROUTER_API_KEY is not set in .env file.\nFormat should be OPENROUTER_API_KEY='api_key_string'")
             self._clients:dict[tuple, ChatOpenAI] = {}
             atexit.register(self.close)
-
+        
+        if self.provider    ==  "unsloth":
+            self.base_url   =   "http://localhost:8888/v1"
+            self.model      =   os.environ.get("MODEL_NAME","")
+            self.api_key    =   api_key or os.environ.get("UNSLOTH_API_KEY","")
+            if not self.api_key:
+                raise RuntimeError("UNSLOTH_API_KEY is not set in the .env file")
+            self._clients:dict[tuple, ChatOpenAI] = {}
+            atexit.register(self.close)
+    
     def build(self, spec: AgentSpec, tools: list[BaseTool]) -> "Runnable":
         llm = self._client(spec)
         return llm.bind_tools(tools) if tools else llm
@@ -69,13 +78,24 @@ class ModelFactory:
                 base_url=self.base_url,
                 temperature=spec.temperature,
                 reasoning=False,
-                disable_streaming=True,
+                disable_streaming=False,
                 keep_alive=-1,
                 num_ctx=spec.num_ctx,
                 num_thread=6,
                 num_gpu=0,
                 repeat_last_n=1000,
                 repeat_penalty=1.05,
+            )
+            return self._clients[key]
+        
+        if self.provider=="unsloth":
+            key=spec.name
+            self._clients[key]=ChatOpenAI(
+                model=self.model,
+                base_url=self.base_url,
+                api_key=self.api_key,
+                temperature=1,
+                disable_streaming=False
             )
             return self._clients[key]
 

@@ -9,14 +9,6 @@ load_dotenv()
 
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 
-def _default_provider() -> str:
-    return os.environ.get("PROVIDER", "ollama").strip().lower()
-
-def _default_model() -> str:
-    provider = _default_provider()
-    if provider == "openrouter":
-        return os.environ.get("OPENROUTER_MODEL_NAME", "")
-    return os.environ.get("OLLAMA_MODEL_NAME", "")
 
 @dataclass
 class Settings:
@@ -25,12 +17,12 @@ class Settings:
     url:str = ""
     base_url: str = "https://openrouter.ai/api/v1"
     openrouter_url: str = "https://openrouter.ai/api/v1"
-    model: str = field(default_factory=_default_model)
-    num_ctx: int = 70000                 # must be >= max_context_tokens + headroom
-    max_context_tokens: int = 60000      # compaction threshold
-    keep_recent_messages: int = 6
+    model: str = os.environ.get("MODEL_NAME","")
+    num_ctx: int = 35000                 # must be >= max_context_tokens + headroom
+    max_context_tokens: int = 30000      # compaction threshold
+    keep_recent_messages: int = 4
     max_iterations: int = 250
-    temperature: float = 0.5
+    temperature: float = 0.7
     prompt_sections: tuple[str, ...] = ("soul", "user", "tool")
     # Phase 1: one DB for all projects (sessions are keyed by project_root).
     # Phase 2 moves this to <project>/.momo/sessions.db.
