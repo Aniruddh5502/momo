@@ -18,8 +18,8 @@ class Settings:
     base_url: str = "https://openrouter.ai/api/v1"
     openrouter_url: str = "https://openrouter.ai/api/v1"
     model: str = os.environ.get("MODEL_NAME","")
-    num_ctx: int = 35000                 # must be >= max_context_tokens + headroom
-    max_context_tokens: int = 30000      # compaction threshold
+    num_ctx: int = 65000                 # must be >= max_context_tokens + headroom
+    max_context_tokens: int = 50000      # compaction threshold
     keep_recent_messages: int = 4
     max_iterations: int = 250
     temperature: float = 0.7

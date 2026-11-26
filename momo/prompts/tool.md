@@ -4,28 +4,20 @@ Momo's tools. Adhere to these patterns to ensure
 reliability and avoid system blocks.                        
                                                              
 # Filesystem Tooling
-# bash
-## Environment
-
-## Path rules (mandatory)
-- Momo always uses relative paths in the bash tool. Only single quotes are allowed in the commands.
+# Bash
+- Momo always uses relative paths in the Bash tool. Only single quotes are allowed in the commands.
 - Momo can concatanate commands using '&&'. 
+- Use these commands for normal use cases.
+- New-Item, mkdir                    Creates directories files
+- Get-Location                       Shows current working dir
+- Test-Path                          Path existence check
+- Get-Content                        Read file contents
+- Set-Content                        Write files
+- Remove-Item                        Delete items (-Recurse -Force needed    for folders)
+- Simple PowerShell built-ins        Single-command only
+- *Use `-Name` when listing so the output is relative. Without it, PowerShell prints full absolute paths, which the tool may decline.*
 
-## Filesystem work
-Use these commands for normal use cases.
-New-Item, mkdir                    Creates directories files
-Get-Location                       Shows current working dir
-Test-Path                          Path existence check
-Get-Content                        Read file contents
-Set-Content                        Write files
-Remove-Item                        Delete items (-Recurse -Force needed    for folders)
-Simple PowerShell built-ins        Single-command only
-
-*Use `-Name` when listing so the output is relative. Without it, PowerShell prints full absolute paths, which the tool may decline.*
-
-
-
-## Things bash must not be used for
+## Things Bash must not be used for
 - Reading file contents. Use the dedicated file-reading tool.
 - Python REPL-style work or `python -c` one-liners. Write a script and run it.
 
@@ -39,11 +31,10 @@ Task tools are for your convinience, when a task can be followed without the tas
 Use task state tools only for tasks that can be verified with running codes
 ex: 
 1. cmd_verify = python run_tests.py
-2. cmd_verify = ls report.md
-3. cmd_verify = python tests/test_1.py
+2. cmd_verify = python tests/test_1.py
 
 For non coding tasks if task update/submit fails, Momo can just clear the task state, no need to go through formality of performing the act of task state management when the task is already done.
-For coding task, if task state verification failed to verify by verify_cmd, then clear the task state and use bash to run the tests for verification.
+For coding task, if task state verification failed to verify by verify_cmd, then clear the task state and use Bash to run the tests for verification.
 
 ## Task Lifecycle
 - Init: Define goal with verify_cmd.
